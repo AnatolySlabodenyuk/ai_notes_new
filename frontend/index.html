@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>After-Session OS</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Локальное демо · обезличенные данные</p>
+          <h1>After-Session OS</h1>
+        </div>
+        <div class="health-pill" id="health">Проверяем локальные модели...</div>
+      </header>
+
+      <section class="workspace">
+        <aside class="panel rail">
+          <div class="panel-title">
+            <span>Ребёнок</span>
+            <button class="ghost-button" id="resetBtn" title="Сбросить демо-историю">Сброс</button>
+          </div>
+          <select id="childSelect" class="select"></select>
+          <div id="childProfile" class="child-profile"></div>
+          <div class="section-header">История</div>
+          <div id="historyList" class="history-list"></div>
+        </aside>
+
+        <section class="panel main-flow">
+          <div class="panel-title">
+            <span>Занятие</span>
+            <span class="safe-copy">AI готовит черновик, специалист утверждает</span>
+          </div>
+
+          <div class="pipeline" id="pipeline">
+            <div class="step" data-step="audio">Аудио</div>
+            <div class="step" data-step="asr">Распознавание</div>
+            <div class="step" data-step="generate">Черновики</div>
+            <div class="step" data-step="save">Сохранение</div>
+          </div>
+
+          <div class="audio-box">
+            <label class="file-drop">
+              <input id="audioInput" type="file" accept="audio/*" />
+              <span>Выберите аудио занятия</span>
+              <small id="audioName">Поддерживается любой формат, который прочитает локальный ASR</small>
+            </label>
+            <button class="primary-button" id="processBtn">Обработать аудио</button>
+          </div>
+
+          <label class="field-label" for="transcript">Транскрипт</label>
+          <textarea id="transcript" class="textarea transcript" placeholder="После обработки аудио здесь появится расшифровка."></textarea>
+
+          <label class="field-label" for="internalNote">Внутренняя заметка специалиста</label>
+          <textarea id="internalNote" class="textarea note" placeholder="Черновик появится после генерации."></textarea>
+
+          <div id="statusBox" class="status-box" hidden></div>
+        </section>
+
+        <aside class="panel parent-panel">
+          <div class="panel-title">
+            <span>Родителю</span>
+            <span class="warm-tag">проверить перед отправкой</span>
+          </div>
+          <textarea id="parentMessage" class="textarea parent-message" placeholder="Короткое спокойное сообщение родителю."></textarea>
+
+          <label class="field-label" for="historyUpdate">Обновление истории</label>
+          <textarea id="historyUpdate" class="textarea history-update" placeholder="Что изменилось в динамике ребёнка."></textarea>
+
+          <button class="confirm-button" id="saveBtn">Подтвердить и сохранить</button>
+
+          <div class="section-header">Вопрос к истории</div>
+          <div class="qa-row">
+            <input id="questionInput" class="input" value="Что улучшилось за последние занятия?" />
+            <button class="secondary-button" id="askBtn">Спросить</button>
+          </div>
+          <div id="answerBox" class="answer-box">Ответ появится здесь и будет основан только на сохранённой истории.</div>
+        </aside>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

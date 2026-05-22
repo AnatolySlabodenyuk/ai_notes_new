@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.playwright-mcp/
+server.log
+server.err.log
+after-session-os-home.png
+data/demo-store.json
