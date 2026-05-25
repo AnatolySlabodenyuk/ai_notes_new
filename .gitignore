@@ -1,7 +1,29 @@
+# Python (компиляция и кэш)
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Виртуальное окружение (добавьте, если папка .venv лежит внутри проекта)
+.venv/
+
+# Логи и отчеты
+*.log
 .playwright-mcp/
-server.log
-server.err.log
-after-session-os-home.png
-data/demo-store.json
+
+# Изображения (ваше правило)
+*.png
+
+# Среда разработки PyCharm / IntelliJ IDEA
+.idea/
+*.suo
+*.ntvsca
+*.njsproj
+*.sln
+*.swp
+
+# Специфичные файлы Windows
+Thumbs.db
+desktop.ini
+
+# Папка с данными (ваше правило)
+data/
