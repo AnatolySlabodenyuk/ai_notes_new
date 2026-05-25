@@ -44,10 +44,19 @@ def parse_ollama_json(response: dict[str, Any]) -> dict[str, Any]:
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://127.0.0.1:11434", model: str = "llama3.1", timeout_seconds: float = 60):
+    def __init__(
+        self,
+        base_url: str = "http://127.0.0.1:11434",
+        model: str = "llama3.1",
+        timeout_seconds: float = 60,
+        think: bool = False,
+        num_predict: int | None = None,
+    ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
+        self.think = think
+        self.num_predict = num_predict
 
     def list_models(self) -> list[dict[str, Any]]:
         payload = self._request("GET", "/api/tags")
@@ -57,12 +66,17 @@ class OllamaClient:
         return models
 
     def chat_json(self, messages: list[dict[str, str]]) -> dict[str, Any]:
+        options: dict[str, Any] = {"temperature": 0.2}
+        if self.num_predict is not None:
+            options["num_predict"] = self.num_predict
+
         payload = {
             "model": self.model,
             "messages": messages,
             "stream": False,
             "format": "json",
-            "options": {"temperature": 0.2},
+            "think": self.think,
+            "options": options,
         }
         return parse_ollama_json(self._request("POST", "/api/chat", payload))
 
@@ -77,7 +91,20 @@ class OllamaClient:
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except urllib.error.HTTPError as exc:
+            try:
+                payload = json.loads(exc.read().decode("utf-8"))
+            except (OSError, json.JSONDecodeError):
+                payload = {}
+            finally:
+                exc.close()
+            message = payload.get("error") or f"Ollama returned HTTP {exc.code}: {exc.reason}"
+            raise OllamaError(str(message)) from exc
+        except TimeoutError as exc:
+            raise OllamaError(
+                f"Ollama request to {self.base_url} timed out after {self.timeout_seconds} seconds."
+            ) from exc
+        except (urllib.error.URLError, OSError) as exc:
             raise OllamaError(f"Cannot reach Ollama at {self.base_url}. Is Ollama running and is the model pulled?") from exc
         except json.JSONDecodeError as exc:
             raise OllamaError("Ollama returned non-JSON output.") from exc
