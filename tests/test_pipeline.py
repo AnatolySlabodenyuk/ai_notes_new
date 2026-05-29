@@ -49,10 +49,9 @@ class _CaptureOllamaHandler(BaseHTTPRequestHandler):
         type(self).payload = json.loads(self.rfile.read(length).decode("utf-8"))
         body = (
             b'{"message":{"content":"{'
-            b'\\"internal_note\\":\\"A\\",'
-            b'\\"parent_message\\":\\"B\\",'
-            b'\\"history_update\\":\\"C\\",'
-            b'\\"qa_suggestions\\":[\\"D\\"]'
+            b'\\"what_we_did\\":\\"A\\",'
+            b'\\"what_changed\\":\\"B\\",'
+            b'\\"home_practice\\":\\"C\\"'
             b'}"}}'
         )
         self.send_response(200)
@@ -70,32 +69,55 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_transcript("   ")
 
-    def test_build_generation_payload_includes_history_and_transcript(self):
+    def test_build_generation_payload_includes_transcript_and_parent_schema(self):
         payload = build_generation_payload(
             transcript="Занимались чтением слогов и домашним заданием.",
-            child={"display_name": "Ребёнок А", "goals": ["слоги"], "sessions": [{"history_update": "Лучше удерживает внимание."}]},
+            child={
+                "display_name": "Ребёнок А",
+                "goals": ["слоги"],
+                "sessions": [{"what_changed": "Лучше удерживает внимание.", "home_practice": "Повторить слоги."}],
+            },
         )
 
         messages = "\n".join(message["content"] for message in payload["messages"])
         self.assertIn("Занимались чтением слогов", messages)
-        self.assertIn("Лучше удерживает внимание", messages)
-        self.assertIn("parent_message", messages)
+        self.assertNotIn("Лучше удерживает внимание", messages)
+        self.assertIn("what_we_did", messages)
+        self.assertIn("what_changed", messages)
+        self.assertIn("home_practice", messages)
+        self.assertIn("справочный помощник", messages)
+
+    def test_generation_payload_forbids_turning_goals_or_history_into_session_facts(self):
+        payload = build_generation_payload(
+            transcript="Прошли алфавит, звонили по телефону и покупали хлеб.",
+            child={
+                "display_name": "Ребёнок А",
+                "goals": ["произносить звук Р", "удерживать внимание"],
+                "sessions": [{"what_changed": "Раньше работали со звуком Р."}],
+            },
+        )
+
+        messages = "\n".join(message["content"] for message in payload["messages"])
+        self.assertIn("Факты для трёх родительских блоков бери только из текущего транскрипта", messages)
+        self.assertIn("Не превращай цели ребёнка или историю прошлых занятий в события сегодняшнего занятия", messages)
+        self.assertIn("Если в транскрипте не сказано, что получилось или что делать дома", messages)
+        self.assertNotIn("произносить звук Р", messages)
+        self.assertNotIn("Раньше работали со звуком Р", messages)
 
     def test_parse_ollama_json_accepts_plain_json_content(self):
         parsed = parse_ollama_json(
             {
                 "message": {
-                    "content": '{"internal_note":"A","parent_message":"B","history_update":"C","qa_suggestions":["D"]}'
+                    "content": '{"what_we_did":"A","what_changed":"B","home_practice":"C"}'
                 }
             }
         )
 
-        self.assertEqual(parsed["internal_note"], "A")
-        self.assertEqual(parsed["qa_suggestions"], ["D"])
+        self.assertEqual(parsed["what_we_did"], "A")
 
     def test_parse_ollama_json_rejects_missing_required_fields(self):
         with self.assertRaises(OllamaError):
-            parse_ollama_json({"message": {"content": '{"internal_note":"A"}'}})
+            parse_ollama_json({"message": {"content": '{"what_we_did":"A"}'}})
 
     def test_ollama_unavailable_maps_to_named_error(self):
         client = OllamaClient(base_url="http://127.0.0.1:1", timeout_seconds=0.1)

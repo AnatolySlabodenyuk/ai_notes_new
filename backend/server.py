@@ -18,11 +18,10 @@ from .ollama_client import OllamaClient, OllamaError
 from .pipeline import generate_drafts
 from .store import DemoStore, StoreError, UnknownChildError
 
-
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = ROOT / "frontend"
 DATA_DIR = ROOT / "data"
-STORE = DemoStore(DATA_DIR / "demo-store.json")
+STORE = DemoStore(DATA_DIR / "app.sqlite3")
 LOGGER = logging.getLogger("after_session_os")
 
 
@@ -63,6 +62,10 @@ class AppHandler(BaseHTTPRequestHandler):
         try:
             if self.path == "/api/reset":
                 self._json_response(STORE.reset())
+            elif self.path == "/api/reset-child":
+                self._reset_child_sessions()
+            elif self.path == "/api/children":
+                self._create_child()
             elif self.path == "/api/transcribe":
                 self._transcribe_audio()
             elif self.path == "/api/generate":
@@ -71,8 +74,6 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._process_audio()
             elif self.path == "/api/save-session":
                 self._save_session()
-            elif self.path == "/api/ask-history":
-                self._ask_history()
             else:
                 self._json_error("Not found", HTTPStatus.NOT_FOUND)
         except UnknownChildError as exc:
@@ -83,6 +84,36 @@ class AppHandler(BaseHTTPRequestHandler):
             self._json_error(str(exc), HTTPStatus.BAD_GATEWAY, "asr_error")
         except StoreError as exc:
             self._json_error(str(exc), HTTPStatus.INTERNAL_SERVER_ERROR, "store_error")
+
+    def _create_child(self) -> None:
+        payload = self._read_json()
+        display_name = str(payload.get("display_name", "")).strip()
+        if not display_name:
+            self._json_error("Missing fields: display_name", HTTPStatus.BAD_REQUEST, "validation_error")
+            return
+        goals = payload.get("goals", [])
+        if not isinstance(goals, list):
+            goals = []
+        child = STORE.add_child(
+            {
+                "display_name": display_name,
+                "age_label": str(payload.get("age_label", "")),
+                "focus": str(payload.get("focus", "")),
+                "goals": goals,
+            }
+        )
+        self._log_info("create_child_done child_id=%s", child["id"])
+        self._json_response({"child": child, "data": STORE.load()}, HTTPStatus.CREATED)
+
+    def _reset_child_sessions(self) -> None:
+        payload = self._read_json()
+        child_id = str(payload.get("child_id", "")).strip()
+        if not child_id:
+            self._json_error("Missing fields: child_id", HTTPStatus.BAD_REQUEST, "validation_error")
+            return
+        data = STORE.reset_child_sessions(child_id)
+        self._log_info("reset_child_sessions_done child_id=%s", child_id)
+        self._json_response(data)
 
     def _process_audio(self) -> None:
         payload = self._read_json()
@@ -164,7 +195,7 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _save_session(self) -> None:
         payload = self._read_json()
-        required = ("child_id", "transcript", "internal_note", "parent_message", "history_update")
+        required = ("child_id", "transcript", "what_we_did", "what_changed", "home_practice")
         missing = [key for key in required if not str(payload.get(key, "")).strip()]
         if missing:
             self._json_error(f"Missing fields: {', '.join(missing)}", HTTPStatus.BAD_REQUEST, "validation_error")
@@ -172,40 +203,6 @@ class AppHandler(BaseHTTPRequestHandler):
         session = STORE.add_session(str(payload["child_id"]), payload)
         self._log_info("save_session_done child_id=%s session_id=%s", payload["child_id"], session["id"])
         self._json_response({"session": session, "data": STORE.load()})
-
-    def _ask_history(self) -> None:
-        payload = self._read_json()
-        child = STORE.get_child(str(payload.get("child_id", "")))
-        question = str(payload.get("question", "")).strip()
-        if not question:
-            self._json_error("Question is empty.", HTTPStatus.BAD_REQUEST, "validation_error")
-            return
-        self._log_info("ask_history_start child_id=%s question_chars=%d", payload.get("child_id", ""), len(question))
-        messages = [
-            {
-                "role": "system",
-                "content": "Отвечай только на основании истории занятий. Если данных нет, так и скажи. Не выдумывай факты.",
-            },
-            {"role": "user", "content": json.dumps({"question": question, "child": child}, ensure_ascii=False)},
-        ]
-        try:
-            started = time.perf_counter()
-            answer = self._ollama_client().chat_json(
-                [
-                    messages[0],
-                    {
-                        "role": "user",
-                        "content": messages[1]["content"]
-                        + '\nВерни JSON: {"internal_note":"", "parent_message":"", "history_update":"", "qa_suggestions":["ответ"]}',
-                    },
-                ]
-            )
-            self._log_info("ask_history_done duration_ms=%d", self._elapsed_ms(started))
-        except OllamaError as exc:
-            self._log_error("ask_history_failed error=%s", exc)
-            self._json_error(str(exc), HTTPStatus.BAD_GATEWAY, "ollama_error")
-            return
-        self._json_response({"answer": answer.get("qa_suggestions", [""])[0], "raw": answer})
 
     def _serve_static(self) -> None:
         relative = "index.html" if self.path == "/" else self.path.replace("/static/", "", 1)
@@ -248,7 +245,7 @@ class AppHandler(BaseHTTPRequestHandler):
         return os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 
     def _ollama_model(self) -> str:
-        return os.environ.get("OLLAMA_MODEL", "qwen3:8b")
+        return os.environ.get("OLLAMA_MODEL", "gemma3:4b")
 
     def _ollama_timeout_seconds(self) -> float:
         return float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "180"))

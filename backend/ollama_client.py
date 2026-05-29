@@ -11,10 +11,10 @@ class OllamaError(RuntimeError):
     """Raised when Ollama is unavailable or returns unusable output."""
 
 
-REQUIRED_GENERATION_FIELDS = ("internal_note", "parent_message", "history_update", "qa_suggestions")
+REQUIRED_GENERATION_FIELDS = ("what_we_did", "what_changed", "home_practice")
 
 
-def parse_ollama_json(response: dict[str, Any]) -> dict[str, Any]:
+def _extract_json_object(response: dict[str, Any]) -> dict[str, Any]:
     content = ""
     if isinstance(response.get("message"), dict):
         content = str(response["message"].get("content", ""))
@@ -33,24 +33,27 @@ def parse_ollama_json(response: dict[str, Any]) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise OllamaError("Ollama response JSON is invalid.") from exc
 
+    return parsed
+
+
+def parse_ollama_json(response: dict[str, Any]) -> dict[str, Any]:
+    parsed = _extract_json_object(response)
+
     missing = [field for field in REQUIRED_GENERATION_FIELDS if field not in parsed]
     if missing:
         raise OllamaError(f"Ollama response missing fields: {', '.join(missing)}")
-
-    if not isinstance(parsed["qa_suggestions"], list):
-        raise OllamaError("Ollama response field qa_suggestions must be a list.")
 
     return parsed
 
 
 class OllamaClient:
     def __init__(
-        self,
-        base_url: str = "http://127.0.0.1:11434",
-        model: str = "llama3.1",
-        timeout_seconds: float = 60,
-        think: bool = False,
-        num_predict: int | None = None,
+            self,
+            base_url: str = "http://127.0.0.1:11434",
+            model: str = "gemma3:4b",
+            timeout_seconds: float = 120,
+            think: bool = False,
+            num_predict: int | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -105,6 +108,7 @@ class OllamaClient:
                 f"Ollama request to {self.base_url} timed out after {self.timeout_seconds} seconds."
             ) from exc
         except (urllib.error.URLError, OSError) as exc:
-            raise OllamaError(f"Cannot reach Ollama at {self.base_url}. Is Ollama running and is the model pulled?") from exc
+            raise OllamaError(
+                f"Cannot reach Ollama at {self.base_url}. Is Ollama running and is the model pulled?") from exc
         except json.JSONDecodeError as exc:
             raise OllamaError("Ollama returned non-JSON output.") from exc

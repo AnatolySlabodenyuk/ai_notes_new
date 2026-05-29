@@ -19,23 +19,28 @@ def _tokens(text: str) -> set[str]:
 
 def evaluate_generation(transcript: str, history: list[str], generation: dict[str, object]) -> EvalResult:
     failures: list[str] = []
-    source_tokens = _tokens(" ".join([transcript, *history]))
-    generated_text = " ".join(str(generation.get(field, "")) for field in ("internal_note", "parent_message", "history_update"))
+    del history
+    source_tokens = _tokens(transcript)
+    parent_fields = ("what_we_did", "what_changed", "home_practice")
+    generated_text = " ".join(str(generation.get(field, "")) for field in parent_fields)
     generated_tokens = _tokens(generated_text)
     invented = sorted(generated_tokens - source_tokens)
 
-    high_signal_inventions = [token for token in invented if token in {"книгу", "прочитал", "впервые", "школе", "диагноз"}]
+    high_signal_inventions = [
+        token
+        for token in invented
+        if token in {"книгу", "прочитал", "впервые", "школе", "диагноз", "звуком", "внимание", "подсказкой"}
+    ]
     if high_signal_inventions:
         failures.append(f"invented facts: {', '.join(high_signal_inventions)}")
 
-    parent_message = str(generation.get("parent_message", ""))
-    if len(parent_message.strip()) < 20:
-        failures.append("parent_message is too short")
-    if any(term in parent_message.lower() for term in STOP_TERMS):
-        failures.append("parent_message uses unsafe clinical wording")
-
-    for field in ("internal_note", "parent_message", "history_update"):
-        if not str(generation.get(field, "")).strip():
+    for field in parent_fields:
+        value = str(generation.get(field, ""))
+        if not value.strip():
             failures.append(f"{field} is empty")
+        if len(value.strip()) < 12:
+            failures.append(f"{field} is too short")
+        if any(term in value.lower() for term in STOP_TERMS):
+            failures.append(f"{field} uses unsafe clinical wording")
 
     return EvalResult(passed=not failures, failures=failures)
