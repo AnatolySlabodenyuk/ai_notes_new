@@ -195,9 +195,37 @@ h1 {
     line-height: 1.45;
 }
 
-.add-child-form {
+.add-child-disclosure {
     margin-top: 14px;
     border-top: 1px solid var(--border);
+    padding-top: 10px;
+}
+
+.add-child-summary {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 10px;
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    list-style: none;
+}
+
+.add-child-summary::-webkit-details-marker {
+    display: none;
+}
+
+.add-child-disclosure[open] .add-child-summary {
+    color: var(--primary);
+    border-color: rgba(47, 125, 122, 0.35);
+    background: rgba(47, 125, 122, 0.06);
+}
+
+.add-child-form {
     padding-top: 2px;
 }
 

@@ -283,9 +283,12 @@ async function saveSession() {
 }
 
 async function addChild() {
+    const addChildDisclosure = $("addChildDisclosure");
     const display_name = $("childNameInput").value.trim();
     if (!display_name) {
+        addChildDisclosure.open = true;
         showStatus("Введите имя или обезличенную метку ребёнка.", true);
+        $("childNameInput").focus();
         return;
     }
     const goals = $("childGoalsInput").value
@@ -311,6 +314,7 @@ async function addChild() {
         $("childFocusInput").value = "";
         $("childGoalsInput").value = "";
         renderChildren();
+        addChildDisclosure.open = false;
         showStatus("Ребёнок добавлен.");
     } catch (error) {
         showStatus(error.message, true);

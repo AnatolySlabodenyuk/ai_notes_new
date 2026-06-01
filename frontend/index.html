@@ -34,19 +34,21 @@
                 <button class="ghost-button" id="resetBtn" title="Очистить историю выбранного ребёнка">Сброс истории</button>
             </div>
             <select id="childSelect" class="select"></select>
-            <div class="add-child-form" aria-label="Добавить ребёнка">
-                <div class="section-header">Добавить ребёнка</div>
-                <label class="field-label" for="childNameInput">Имя / метка</label>
-                <input id="childNameInput" class="input" type="text" placeholder="Например: Ребёнок В"/>
-                <label class="field-label" for="childAgeInput">Возраст</label>
-                <input id="childAgeInput" class="input" type="text" placeholder="Например: 7 лет"/>
-                <label class="field-label" for="childFocusInput">Фокус</label>
-                <input id="childFocusInput" class="input" type="text" placeholder="Коротко: речь, коммуникация"/>
-                <label class="field-label" for="childGoalsInput">Цели</label>
-                <textarea id="childGoalsInput" class="textarea goals-input"
-                          placeholder="Одна цель на строку"></textarea>
-                <button class="secondary-button wide-button" id="addChildBtn" type="button">Добавить ребёнка</button>
-            </div>
+            <details class="add-child-disclosure" id="addChildDisclosure">
+                <summary class="add-child-summary">+ Добавить ребёнка</summary>
+                <div class="add-child-form" aria-label="Добавить ребёнка">
+                    <label class="field-label" for="childNameInput">Имя / метка</label>
+                    <input id="childNameInput" class="input" type="text" placeholder="Например: Ребёнок В"/>
+                    <label class="field-label" for="childAgeInput">Возраст</label>
+                    <input id="childAgeInput" class="input" type="text" placeholder="Например: 7 лет"/>
+                    <label class="field-label" for="childFocusInput">Фокус</label>
+                    <input id="childFocusInput" class="input" type="text" placeholder="Коротко: речь, коммуникация"/>
+                    <label class="field-label" for="childGoalsInput">Цели</label>
+                    <textarea id="childGoalsInput" class="textarea goals-input"
+                              placeholder="Одна цель на строку"></textarea>
+                    <button class="secondary-button wide-button" id="addChildBtn" type="button">Добавить ребёнка</button>
+                </div>
+            </details>
             <div id="childProfile" class="child-profile"></div>
             <div class="section-header">Опубликованные записи</div>
             <div id="historyList" class="history-list"></div>
