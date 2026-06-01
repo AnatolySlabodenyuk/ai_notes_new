@@ -1,1 +1,1 @@
-"""Local Voice After-Session OS backend package."""
+"""Local electronic child journal demo backend."""

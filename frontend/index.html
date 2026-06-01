@@ -3,120 +3,116 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Карточка ребёнка для родителей</title>
+    <title>Электронный журнал ребёнка</title>
     <link rel="stylesheet" href="/static/styles.css"/>
 </head>
 <body>
 <main class="app-shell">
     <header class="topbar">
         <div>
-            <p class="eyebrow">Локальное демо · обезличенные данные · без настоящего входа</p>
-            <h1>Карточка ребёнка для родителей</h1>
+            <p class="eyebrow">Личный кабинет родителя</p>
+            <h1>Электронный журнал ребёнка</h1>
         </div>
-        <div class="topbar-actions">
-            <div class="mode-switch" aria-label="Демо-режим">
-                <span>Демо-режим</span>
-                <button class="mode-button active" id="adminModeBtn" type="button">Специалист / админ</button>
-                <button class="mode-button" id="parentModeBtn" type="button">Родитель</button>
-            </div>
-            <div class="health-pill" id="health">Проверяем локальные модели...</div>
-        </div>
+        <label class="month-control">
+            <span>Месяц</span>
+            <select id="monthSelect">
+                <option value="2026-06">Июнь 2026</option>
+                <option value="2026-05">Май 2026</option>
+            </select>
+        </label>
     </header>
 
     <div class="demo-note">
-        Это демонстрация разграничения интерфейса, а не production-авторизация. Используются только обезличенные данные.
+        Демо интерфейса: используются обезличенные данные. Доступ родителя к одному ребёнку имитируется без настоящего
+        входа.
     </div>
 
-    <section class="workspace">
-        <aside class="panel rail" id="adminRail">
-            <div class="panel-title">
-                <span>Дети в демо</span>
-                <button class="ghost-button" id="resetBtn" title="Очистить историю выбранного ребёнка">Сброс истории</button>
-            </div>
-            <select id="childSelect" class="select"></select>
-            <details class="add-child-disclosure" id="addChildDisclosure">
-                <summary class="add-child-summary">+ Добавить ребёнка</summary>
-                <div class="add-child-form" aria-label="Добавить ребёнка">
-                    <label class="field-label" for="childNameInput">Имя / метка</label>
-                    <input id="childNameInput" class="input" type="text" placeholder="Например: Ребёнок В"/>
-                    <label class="field-label" for="childAgeInput">Возраст</label>
-                    <input id="childAgeInput" class="input" type="text" placeholder="Например: 7 лет"/>
-                    <label class="field-label" for="childFocusInput">Фокус</label>
-                    <input id="childFocusInput" class="input" type="text" placeholder="Коротко: речь, коммуникация"/>
-                    <label class="field-label" for="childGoalsInput">Цели</label>
-                    <textarea id="childGoalsInput" class="textarea goals-input"
-                              placeholder="Одна цель на строку"></textarea>
-                    <button class="secondary-button wide-button" id="addChildBtn" type="button">Добавить ребёнка</button>
+    <section class="profile-card panel">
+        <div>
+            <p class="eyebrow">Карточка ребёнка</p>
+            <h2 id="childName">Загрузка...</h2>
+            <p class="muted" id="childMeta"></p>
+        </div>
+        <nav class="tabs" aria-label="Разделы журнала">
+            <a href="#/overview" id="overviewTab">Обзор</a>
+            <a href="#/calendar" id="calendarTab">Календарь</a>
+        </nav>
+    </section>
+
+    <div class="error-box" id="errorBox" hidden></div>
+
+    <section id="overviewView">
+        <div class="summary-grid" id="summaryGrid"></div>
+
+        <div class="two-column">
+            <section class="panel">
+                <div class="section-title">
+                    <div>
+                        <p class="eyebrow">Исключения за месяц</p>
+                        <h2>Требует внимания</h2>
+                    </div>
                 </div>
-            </details>
-            <div id="childProfile" class="child-profile"></div>
-            <div class="section-header">Опубликованные записи</div>
-            <div id="historyList" class="history-list"></div>
-        </aside>
+                <div class="stack" id="attentionList"></div>
+            </section>
 
-        <section class="panel main-flow" id="adminFlow">
-            <div class="panel-title">
-                <span>Публикация после занятия</span>
-                <span class="safe-copy">AI готовит черновик, специалист утверждает</span>
+            <section class="panel">
+                <div class="section-title">
+                    <div>
+                        <p class="eyebrow">Расписание</p>
+                        <h2>Ближайшие занятия</h2>
+                    </div>
+                </div>
+                <div class="stack" id="upcomingList"></div>
+            </section>
+        </div>
+
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Маршрут ребёнка</p>
+                    <h2>Направления</h2>
+                </div>
+                <span class="muted">Нажмите на карточку, чтобы открыть посещения и цели</span>
             </div>
-
-            <div class="pipeline" id="pipeline">
-                <div class="step" data-step="audio">Аудио</div>
-                <div class="step" data-step="asr">Распознавание</div>
-                <div class="step" data-step="generate">3 блока</div>
-                <div class="step" data-step="save">Публикация</div>
-            </div>
-
-            <div class="audio-box">
-                <label class="file-drop">
-                    <input id="audioInput" type="file" accept="audio/*"/>
-                    <span>Выберите аудио заметки специалиста</span>
-                    <small id="audioName">Если ASR недоступен, можно вставить транскрипт вручную</small>
-                </label>
-                <button class="primary-button" id="processBtn" type="button">Обработать аудио</button>
-            </div>
-
-            <label class="field-label" for="transcript">Транскрипт</label>
-            <textarea id="transcript" class="textarea transcript"
-                      placeholder="Расшифровка аудио или ручной ввод для демо."></textarea>
-            <button class="secondary-button wide-button" id="generateBtn" type="button">Сгенерировать 3 блока из
-                транскрипта
-            </button>
-
-            <div id="statusBox" class="status-box" hidden></div>
+            <div class="direction-grid" id="directionGrid"></div>
         </section>
+    </section>
 
-        <aside class="panel parent-panel" id="draftPanel">
-            <div class="panel-title">
-                <span>Черновик для родителя</span>
-                <span class="warm-tag">проверить перед публикацией</span>
+    <section class="panel" id="calendarView" hidden>
+        <div class="section-title">
+            <div>
+                <p class="eyebrow">Все направления</p>
+                <h2>Календарь занятий</h2>
             </div>
-            <label class="field-label" for="whatWeDid">Что делали</label>
-            <textarea id="whatWeDid" class="textarea parent-block"
-                      placeholder="Коротко и понятно: чем занимались."></textarea>
+        </div>
+        <div class="legend" id="calendarLegend"></div>
+        <div class="calendar-list" id="calendarList"></div>
+    </section>
 
-            <label class="field-label" for="whatChanged">Что получилось</label>
-            <textarea id="whatChanged" class="textarea parent-block"
-                      placeholder="Что изменилось, что получилось или что важно заметить."></textarea>
-
-            <label class="field-label" for="homePractice">Что попробовать дома</label>
-            <textarea id="homePractice" class="textarea parent-block"
-                      placeholder="Спокойная домашняя практика без давления."></textarea>
-
-            <button class="confirm-button" id="saveBtn" type="button">Опубликовать в карточку ребёнка</button>
-        </aside>
-
-        <section class="panel parent-cabinet" id="parentCabinet" hidden>
-            <div class="panel-title">
-                <span>Кабинет родителя</span>
-                <span class="warm-tag" id="parentLabel">Родитель</span>
+    <section id="directionView" hidden>
+        <button class="back-button" id="backButton" type="button">← Вернуться к обзору</button>
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Направление</p>
+                    <h2 id="directionTitle"></h2>
+                </div>
+                <strong class="hours-total" id="directionHours"></strong>
             </div>
-            <div id="parentProfile" class="child-profile"></div>
-            <div class="section-header">Лента занятий</div>
-            <div id="parentFeed" class="parent-feed"></div>
+            <p class="muted" id="directionComparison"></p>
+            <div class="visit-list" id="directionVisits"></div>
+        </section>
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Прогресс</p>
+                    <h2>Цели направления</h2>
+                </div>
+            </div>
+            <div class="goal-list" id="goalList"></div>
         </section>
     </section>
 </main>
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=3"></script>
 </body>
 </html>

@@ -1,23 +1,30 @@
-# Parent Card MVP
+# Electronic Child Journal MVP
 
-Local demo for a director presentation at a center supporting children with ASD.
+Local read-only demo for discussing a parent portal with a school supporting children with ASD.
 
-The flow: a specialist records or uploads a short post-session voice note, the app transcribes it locally, local Ollama generates three parent-friendly draft blocks, the specialist edits and publishes them, and the parent-facing child card shows the approved session feed.
+The parent sees one anonymized child, monthly planned and attended hours, exceptions that need attention, upcoming visits, a shared calendar, and direction-specific goals with progress history.
 
-This is a discovery demo with anonymized data. It simulates role separation in the UI, but it is not production authorization or compliance software.
+This is a discovery demo. It uses anonymized data and simulates a parent's access to one child. It is not production authorization or compliance software.
 
 ## Run
 
-Use the bundled or system Python:
+Create a virtual environment and install the runtime dependency:
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 python -m backend.server
 ```
 
-If `python` is not on PATH in this Codex workspace, use:
+The `tzdata` package is required on Windows because Python does not normally
+have a system timezone database there.
+
+If the existing `.venv` points to a removed Python installation, recreate it:
 
 ```powershell
-& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m backend.server
+Remove-Item -Recurse -Force .venv
+python -m venv .venv
 ```
 
 Open:
@@ -28,40 +35,28 @@ http://127.0.0.1:8765
 
 ## Demo Script
 
-1. Start the app and keep `Специалист / админ` selected.
-2. Pick an anonymized child.
-3. Upload audio, or paste a transcript manually if local ASR is unavailable.
-4. Generate three blocks: `Что делали`, `Что получилось`, `Что попробовать дома`.
-5. Edit the blocks as the specialist and publish them.
-6. Switch to `Родитель` mode and show the read-only session feed.
+1. Open the overview and point out monthly planned vs attended hours.
+2. Review `Требует внимания` to explain a partial visit, transfer, cancellation, and absence.
+3. Open `Календарь` and select a visit.
+4. Open the `ABA` direction and show a measurable goal with its small trend chart.
+5. Open `Психолог` and show a goal whose progress is explained with dated comments instead of a misleading percentage.
+6. Switch to May 2026 to show month comparison behavior.
 
-Use the director conversation to learn:
+Use the customer conversation to learn:
 
-- how specialists currently write parent updates;
-- how long the post-session communication takes;
-- what would block the center from adopting this workflow.
+- which exceptions parents must see and which should remain internal;
+- who records planned and actual attendance;
+- how each specialist updates goals;
+- which goal metrics are genuinely meaningful for parents.
 
-## Local Models
-
-Ollama must be running locally. Defaults:
+## API
 
 ```text
-OLLAMA_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=gemma3:4b
-OLLAMA_TIMEOUT_SECONDS=180
-OLLAMA_NUM_PREDICT=700
+GET /api/journal?month=YYYY-MM
+GET /api/health
 ```
 
-Make sure the selected model is pulled in Ollama:
-
-```powershell
-ollama list
-ollama pull gemma3:4b
-```
-
-For audio transcription, install `faster-whisper` in the Python environment used to run the server. The backend uses Whisper model `small` by default.
-
-If ASR is not available during a demo, paste a transcript manually and use the `Сгенерировать 3 блока из транскрипта` button.
+The journal endpoint returns one anonymized parent-cabinet snapshot. Invalid months return `400 invalid_month`.
 
 ## Test
 
@@ -77,6 +72,4 @@ Demo state is stored in a local SQLite database:
 data/app.sqlite3
 ```
 
-If the database is missing or empty, the app creates it and loads anonymized demo seed data from `backend/demo_seed.json`. The `data/` directory is ignored by git so local pilot data stays out of the repository.
-
-Only anonymized demo children/sessions belong here. The UI role switch is for demonstration only; do not use this MVP with real child personal data.
+If the local schema version changes, the app recreates the ignored demo database from `backend/demo_seed.json`. Do not place real child personal data in the seed or local demo database.
