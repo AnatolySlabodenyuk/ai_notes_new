@@ -184,6 +184,10 @@ select {
     background: #fffdf9;
 }
 
+.panel .visit-card, .panel .goal-card, .panel .calendar-day, .panel .direction-card {
+    box-shadow: none;
+}
+
 .visit-card p, .goal-card p {
     margin: 6px 0 0;
     line-height: 1.4;
@@ -352,7 +356,27 @@ select {
         flex-direction: column;
     }
 
-    .summary-grid, .direction-grid, .two-column {
+    .direction-grid, .two-column {
         grid-template-columns: 1fr;
+    }
+
+    .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .summary-card {
+        min-height: 112px;
+        padding: 14px;
+    }
+
+    .summary-value {
+        font-size: 23px;
+    }
+
+    #overviewView > .panel .section-title {
+        align-items: start;
+        flex-direction: column;
+        gap: 6px;
     }
 }

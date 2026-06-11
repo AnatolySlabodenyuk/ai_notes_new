@@ -159,7 +159,7 @@ function renderOverview() {
             node("strong", "direction-hours", `${formatMinutes(direction.actual_minutes)} из ${formatMinutes(direction.planned_minutes)}`),
             node("span", "muted", `${formatGoalCount(direction.goals.length)} · открыть →`)
         );
-        card.addEventListener("click", () => navigate(`#/direction/${direction.slug}?month=${state.month}`));
+        card.addEventListener("click", () => navigate(`#/direction/${direction.slug}?month=${state.month}&from=overview`));
         return card;
     });
     $("directionGrid").replaceChildren(...cards);
@@ -188,7 +188,7 @@ function renderCalendar() {
                 node("span", "muted", `${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)}`),
                 badge(visit.status)
             );
-            button.addEventListener("click", () => navigate(`#/direction/${direction.slug}?month=${state.month}&date=${day.date}`));
+            button.addEventListener("click", () => navigate(`#/direction/${direction.slug}?month=${state.month}&date=${day.date}&from=calendar`));
             block.append(button);
         });
         return block;
@@ -246,6 +246,9 @@ function renderDirection(route) {
     const delta = direction.comparison.actual_minutes_delta;
     $("directionComparison").textContent = `К прошлому месяцу: ${delta >= 0 ? "+" : ""}${formatMinutes(delta)}`;
     const selectedDate = route.params.get("date");
+    const directionSource = route.params.get("from") === "calendar" ? "calendar" : "overview";
+    $("backButton").textContent = directionSource === "calendar" ? "← Вернуться к календарю" : "← Вернуться к обзору";
+    $("backButton").onclick = () => navigate(`#/${directionSource}?month=${state.month}`);
     const visits = selectedDate ? direction.visits.filter((visit) => visit.date === selectedDate) : direction.visits;
     $("directionVisits").replaceChildren(
         ...(visits.length ? visits.map((visit) => visitCard(visit, direction)) : [empty("Занятий в этом месяце нет.")])
@@ -263,11 +266,13 @@ function render() {
     $("calendarTab").href = `#/calendar?month=${state.month}`;
     const isCalendar = route.path === "/calendar";
     const isDirection = route.path.startsWith("/direction/");
+    const directionSource = isDirection && route.params.get("from") === "calendar" ? "calendar" : "overview";
+    const isCalendarContext = isCalendar || (isDirection && directionSource === "calendar");
     $("overviewView").hidden = isCalendar || isDirection;
     $("calendarView").hidden = !isCalendar;
     $("directionView").hidden = !isDirection;
-    $("overviewTab").classList.toggle("active", !isCalendar && !isDirection);
-    $("calendarTab").classList.toggle("active", isCalendar);
+    $("overviewTab").classList.toggle("active", !isCalendarContext);
+    $("calendarTab").classList.toggle("active", isCalendarContext);
     if (isCalendar) renderCalendar();
     else if (isDirection) renderDirection(route);
     else renderOverview();
@@ -276,9 +281,10 @@ function render() {
 $("monthSelect").addEventListener("change", (event) => {
     const selectedMonth = event.target.value;
     const route = currentRoute();
-    navigate(`#${route.path}?month=${selectedMonth}`);
+    route.params.set("month", selectedMonth);
+    route.params.delete("date");
+    navigate(`#${route.path}?${route.params}`);
 });
-$("backButton").addEventListener("click", () => navigate(ROUTES.overview));
 window.addEventListener("hashchange", () => {
     const routeMonth = currentRoute().params.get("month");
     if (routeMonth && routeMonth !== state.month) {

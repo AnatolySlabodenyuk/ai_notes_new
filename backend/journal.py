@@ -82,7 +82,8 @@ def build_journal_snapshot(
     ]
     updates_by_goal: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for update in goal_updates:
-        updates_by_goal[update["goal_id"]].append(update)
+        if _month_of(update["updated_at"]) <= month:
+            updates_by_goal[update["goal_id"]].append(update)
 
     goals_by_direction: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for goal in goals:

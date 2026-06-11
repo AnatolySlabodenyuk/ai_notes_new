@@ -47,9 +47,9 @@ class JournalSnapshotTests(unittest.TestCase):
             },
         ]
 
-    def build(self, visits, goals=None, updates=None, now="2026-06-01T08:00:00+03:00"):
+    def build(self, visits, goals=None, updates=None, now="2026-06-01T08:00:00+03:00", month="2026-06"):
         return build_journal_snapshot(
-            month="2026-06",
+            month=month,
             child=self.child,
             directions=self.directions,
             visits=visits,
@@ -234,6 +234,45 @@ class JournalSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["overview"]["planned_minutes"], 0)
         self.assertEqual(snapshot["overview"]["actual_minutes"], 0)
         self.assertEqual(snapshot["calendar"], [])
+
+    def test_goal_history_excludes_updates_after_selected_month(self):
+        goals = [
+            {
+                "id": "goal-requests",
+                "child_id": "child-a",
+                "direction_id": "direction-aba",
+                "title": "Самостоятельно просить помощь",
+                "description": "Использовать короткую просьбу без подсказки.",
+                "status": "progress",
+                "metric_label": "самостоятельных просьб",
+                "metric_target": 10,
+                "sort_order": 1,
+            }
+        ]
+        updates = [
+            {
+                "id": "update-may",
+                "goal_id": "goal-requests",
+                "updated_at": "2026-05-20T12:00:00+03:00",
+                "status": "active",
+                "comment": "Начали наблюдение.",
+                "metric_value": 3,
+            },
+            {
+                "id": "update-june",
+                "goal_id": "goal-requests",
+                "updated_at": "2026-06-01T12:00:00+03:00",
+                "status": "progress",
+                "comment": "Чаще просит без подсказки.",
+                "metric_value": 6,
+            },
+        ]
+
+        snapshot = self.build([], goals=goals, updates=updates, month="2026-05")
+
+        goal = snapshot["directions"][0]["goals"][0]
+        self.assertEqual([update["id"] for update in goal["updates"]], ["update-may"])
+        self.assertEqual(goal["latest_update"]["metric_value"], 3)
 
 
 if __name__ == "__main__":

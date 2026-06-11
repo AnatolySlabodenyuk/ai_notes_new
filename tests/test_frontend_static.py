@@ -6,6 +6,7 @@ class FrontendStaticSafetyTests(unittest.TestCase):
     def setUp(self):
         self.html = Path("frontend/index.html").read_text(encoding="utf-8")
         self.app = Path("frontend/app.js").read_text(encoding="utf-8")
+        self.styles = Path("frontend/styles.css").read_text(encoding="utf-8")
 
     def test_app_does_not_render_store_data_with_inner_html(self):
         self.assertNotIn(".innerHTML", self.app)
@@ -20,11 +21,13 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("#/calendar", self.app)
         self.assertIn("#/direction/", self.app)
         self.assertIn("hashchange", self.app)
-        self.assertIn('navigate(`#${route.path}?month=${selectedMonth}`)', self.app)
+        self.assertIn('navigate(`#${route.path}?${route.params}`)', self.app)
 
     def test_month_switch_loads_snapshot_through_hash_change(self):
         self.assertIn("const selectedMonth = event.target.value;", self.app)
-        self.assertIn('navigate(`#${route.path}?month=${selectedMonth}`)', self.app)
+        self.assertIn('route.params.set("month", selectedMonth);', self.app)
+        self.assertIn('route.params.delete("date");', self.app)
+        self.assertIn('navigate(`#${route.path}?${route.params}`)', self.app)
         self.assertNotIn("state.month = event.target.value;", self.app)
 
     def test_dashboard_copy_and_demo_boundary_are_present(self):
@@ -35,12 +38,32 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("Обзор", self.html)
         self.assertIn("Календарь", self.html)
 
+    def test_static_assets_use_matching_cache_busting_version(self):
+        self.assertIn('href="/static/styles.css?v=5"', self.html)
+        self.assertIn('src="/static/app.js?v=5"', self.html)
+
     def test_old_voice_note_workflow_is_not_rendered(self):
         self.assertNotIn("audioInput", self.html)
         self.assertNotIn("transcript", self.html)
         self.assertNotIn("whatWeDid", self.html)
         self.assertNotIn("processAudio", self.app)
         self.assertNotIn("generateFromTranscript", self.app)
+
+    def test_direction_navigation_preserves_source_and_month(self):
+        self.assertIn("?month=${state.month}&from=overview", self.app)
+        self.assertIn("&date=${day.date}&from=calendar", self.app)
+        self.assertIn('const directionSource = route.params.get("from") === "calendar" ? "calendar" : "overview";', self.app)
+        self.assertIn('navigate(`#/${directionSource}?month=${state.month}`)', self.app)
+        self.assertIn('directionSource === "calendar" ? "← Вернуться к календарю" : "← Вернуться к обзору"', self.app)
+
+    def test_direction_navigation_keeps_source_tab_active(self):
+        self.assertIn('const directionSource = isDirection && route.params.get("from") === "calendar" ? "calendar" : "overview";', self.app)
+        self.assertIn('const isCalendarContext = isCalendar || (isDirection && directionSource === "calendar");', self.app)
+
+    def test_mobile_summary_grid_is_compact_and_direction_heading_stacks(self):
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", self.styles)
+        self.assertIn("#overviewView > .panel .section-title", self.styles)
+        self.assertIn("align-items: start;", self.styles)
 
 
 if __name__ == "__main__":
