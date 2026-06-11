@@ -98,8 +98,14 @@ function badge(status) {
     return node("span", `badge status-${status}`, STATUS_LABELS[status] || status);
 }
 
-function visitCard(visit, direction) {
-    const card = node("article", "visit-card");
+function summaryCard(label, value, detail, tone) {
+    const card = node("article", `summary-card summary-${tone}`);
+    card.append(node("span", "eyebrow", label), node("strong", "summary-value", value), node("small", "muted", detail));
+    return card;
+}
+
+function visitCard(visit, direction, modifier = "") {
+    const card = node("article", `visit-card ${modifier}`.trim());
     const top = node("div", "visit-top");
     const title = node("strong", "", direction?.title || "Занятие");
     if (direction?.color) title.style.color = direction.color;
@@ -121,31 +127,25 @@ function renderProfile() {
     $("childMeta").textContent = `${child.age_label} · ${child.focus}`;
 }
 
-function summaryCard(label, value, detail) {
-    const card = node("article", "summary-card panel");
-    card.append(node("span", "eyebrow", label), node("strong", "summary-value", value), node("small", "muted", detail));
-    return card;
-}
-
 function renderOverview() {
     const overview = state.snapshot.overview;
     const delta = overview.comparison.actual_minutes_delta;
     $("summaryGrid").replaceChildren(
-        summaryCard("План на месяц", formatMinutes(overview.planned_minutes), "По всем направлениям"),
-        summaryCard("Получено", formatMinutes(overview.actual_minutes), "Фактически посещённые занятия"),
-        summaryCard("Динамика", `${delta >= 0 ? "+" : ""}${formatMinutes(delta)}`, "К прошлому месяцу"),
-        summaryCard("Направления", String(state.snapshot.directions.length), "Активный маршрут ребёнка"),
+        summaryCard("План", formatMinutes(overview.planned_minutes), "На месяц по всем направлениям", "planned"),
+        summaryCard("Получено", formatMinutes(overview.actual_minutes), "Фактически посещённые занятия", "actual"),
+        summaryCard("Динамика", `${delta >= 0 ? "+" : ""}${formatMinutes(delta)}`, "К прошлому месяцу", "delta"),
+        summaryCard("Маршрут", String(state.snapshot.directions.length), "Активных направлений", "route"),
     );
 
     const attention = overview.attention_items.map((visit) => {
         const direction = state.snapshot.directions.find((item) => item.id === visit.direction_id);
-        return visitCard(visit, direction);
+        return visitCard(visit, direction, "attention-card");
     });
     $("attentionList").replaceChildren(...(attention.length ? attention : [empty("Отклонений за месяц нет.")]));
 
     const upcoming = overview.upcoming_visits.map((visit) => {
         const direction = state.snapshot.directions.find((item) => item.id === visit.direction_id);
-        return visitCard(visit, direction);
+        return visitCard(visit, direction, "upcoming-card");
     });
     $("upcomingList").replaceChildren(...(upcoming.length ? upcoming : [empty("Ближайших занятий пока нет.")]));
 
@@ -177,15 +177,20 @@ function renderCalendar() {
     );
     const days = state.snapshot.calendar.map((day) => {
         const block = node("section", "calendar-day");
-        block.append(node("h3", "", formatDate(`${day.date}T12:00:00+03:00`)));
+        const heading = node("div", "calendar-day-heading");
+        heading.append(
+            node("h3", "", formatDate(`${day.date}T12:00:00+03:00`)),
+            node("span", "muted", `${day.visits.length} ${day.visits.length === 1 ? "занятие" : "занятия"}`),
+        );
+        block.append(heading);
         day.visits.forEach((visit) => {
             const direction = state.snapshot.directions.find((item) => item.id === visit.direction_id);
             const button = node("button", "calendar-visit");
             button.type = "button";
             button.style.borderLeftColor = direction.color;
             button.append(
+                node("span", "calendar-time", `${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)}`),
                 node("strong", "", direction.title),
-                node("span", "muted", `${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)}`),
                 badge(visit.status)
             );
             button.addEventListener("click", () => navigate(`#/direction/${direction.slug}?month=${state.month}&date=${day.date}&from=calendar`));
@@ -214,12 +219,11 @@ function goalCard(goal) {
     const card = node("article", "goal-card");
     const top = node("div", "visit-top");
     top.append(node("h3", "", goal.title), badge(goal.status));
-    card.append(top, node("p", "", goal.description));
+    card.append(top, node("p", "goal-lead", goal.description));
     if (goal.metric_label && goal.latest_update?.metric_value !== null && goal.latest_update?.metric_value !== undefined) {
-        card.append(
-            node("strong", "metric-value", `${goal.latest_update.metric_value} / ${goal.metric_target} · ${goal.metric_label}`),
-            sparkline(goal.updates)
-        );
+        const metric = node("div", "metric-panel");
+        metric.append(node("strong", "metric-value", `${goal.latest_update.metric_value} / ${goal.metric_target}`), node("span", "muted", goal.metric_label), sparkline(goal.updates));
+        card.append(metric);
     }
     const history = node("div", "goal-history");
     goal.updates.slice().reverse().forEach((update) => {

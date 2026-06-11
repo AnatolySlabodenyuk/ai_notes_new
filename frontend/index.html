@@ -4,7 +4,7 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>Электронный журнал ребёнка</title>
-    <link rel="stylesheet" href="/static/styles.css?v=5"/>
+    <link rel="stylesheet" href="/static/styles.css?v=7"/>
 </head>
 <body>
 <main class="app-shell">
@@ -27,35 +27,43 @@
         входа.
     </div>
 
+    <nav class="app-nav" aria-label="Разделы журнала">
+        <a href="#/overview" id="overviewTab">Обзор</a>
+        <a href="#/calendar" id="calendarTab">Календарь</a>
+    </nav>
+
     <section class="profile-card panel">
         <div>
             <p class="eyebrow">Карточка ребёнка</p>
             <h2 id="childName">Загрузка...</h2>
             <p class="muted" id="childMeta"></p>
         </div>
-        <nav class="tabs" aria-label="Разделы журнала">
-            <a href="#/overview" id="overviewTab">Обзор</a>
-            <a href="#/calendar" id="calendarTab">Календарь</a>
-        </nav>
     </section>
 
     <div class="error-box" id="errorBox" hidden></div>
 
     <section id="overviewView">
-        <div class="summary-grid" id="summaryGrid"></div>
+        <section class="overview-hero panel">
+            <div>
+                <p class="eyebrow">Состояние месяца</p>
+                <h2>Коротко о посещениях</h2>
+            </div>
+            <div class="summary-grid" id="summaryGrid"></div>
+        </section>
 
-        <div class="two-column">
-            <section class="panel">
+        <div class="parent-dashboard">
+            <section class="panel attention-panel">
                 <div class="section-title">
                     <div>
                         <p class="eyebrow">Исключения за месяц</p>
                         <h2>Требует внимания</h2>
                     </div>
+                    <span class="muted">То, что родителю важно заметить</span>
                 </div>
                 <div class="stack" id="attentionList"></div>
             </section>
 
-            <section class="panel">
+            <section class="panel upcoming-panel">
                 <div class="section-title">
                     <div>
                         <p class="eyebrow">Расписание</p>
@@ -113,6 +121,6 @@
         </section>
     </section>
 </main>
-<script src="/static/app.js?v=5"></script>
+<script src="/static/app.js?v=7"></script>
 </body>
 </html>

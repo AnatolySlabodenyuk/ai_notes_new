@@ -33,14 +33,32 @@ class FrontendStaticSafetyTests(unittest.TestCase):
     def test_dashboard_copy_and_demo_boundary_are_present(self):
         self.assertIn("Электронный журнал", self.html)
         self.assertIn("обезличенные данные", self.html)
+        self.assertIn("Коротко о посещениях", self.html)
         self.assertIn("Требует внимания", self.html)
         self.assertIn("Ближайшие занятия", self.html)
         self.assertIn("Обзор", self.html)
         self.assertIn("Календарь", self.html)
 
     def test_static_assets_use_matching_cache_busting_version(self):
-        self.assertIn('href="/static/styles.css?v=5"', self.html)
-        self.assertIn('src="/static/app.js?v=5"', self.html)
+        self.assertIn('href="/static/styles.css?v=7"', self.html)
+        self.assertIn('src="/static/app.js?v=7"', self.html)
+
+    def test_calendar_navigation_is_separate_from_child_card(self):
+        profile_start = self.html.index('<section class="profile-card panel">')
+        profile_end = self.html.index("</section>", profile_start)
+        profile_markup = self.html[profile_start:profile_end]
+
+        self.assertIn('<nav class="app-nav"', self.html)
+        self.assertNotIn("overviewTab", profile_markup)
+        self.assertNotIn("calendarTab", profile_markup)
+
+    def test_parent_overview_blocks_are_rendered(self):
+        self.assertIn("summaryGrid", self.html)
+        self.assertIn("attentionList", self.html)
+        self.assertIn("upcomingList", self.html)
+        self.assertIn("summaryCard", self.app)
+        self.assertIn("attention-card", self.app)
+        self.assertIn("upcoming-card", self.app)
 
     def test_old_voice_note_workflow_is_not_rendered(self):
         self.assertNotIn("audioInput", self.html)
@@ -62,8 +80,16 @@ class FrontendStaticSafetyTests(unittest.TestCase):
 
     def test_mobile_summary_grid_is_compact_and_direction_heading_stacks(self):
         self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", self.styles)
-        self.assertIn("#overviewView > .panel .section-title", self.styles)
+        self.assertIn(".summary-card", self.styles)
         self.assertIn("align-items: start;", self.styles)
+
+    def test_calendar_and_goals_have_timeline_hooks(self):
+        self.assertIn("calendar-day-heading", self.app)
+        self.assertIn("calendar-time", self.app)
+        self.assertIn("metric-panel", self.app)
+        self.assertIn("goal-lead", self.app)
+        self.assertIn(".calendar-day::before", self.styles)
+        self.assertIn(".goal-update::before", self.styles)
 
 
 if __name__ == "__main__":
