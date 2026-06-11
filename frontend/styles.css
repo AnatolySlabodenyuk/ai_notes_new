@@ -22,9 +22,8 @@
 
 body {
     margin: 0;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 240px),
-        var(--bg);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 240px),
+    var(--bg);
     color: var(--ink);
     font-family: Inter, "Segoe UI", Arial, sans-serif;
 }
