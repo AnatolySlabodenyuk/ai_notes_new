@@ -33,15 +33,12 @@ class FrontendStaticSafetyTests(unittest.TestCase):
     def test_dashboard_copy_and_demo_boundary_are_present(self):
         self.assertIn("Электронный журнал", self.html)
         self.assertIn("обезличенные данные", self.html)
-        self.assertIn("Коротко о посещениях", self.html)
-        self.assertIn("Требует внимания", self.html)
-        self.assertIn("Ближайшие занятия", self.html)
         self.assertIn("Обзор", self.html)
         self.assertIn("Календарь", self.html)
 
     def test_static_assets_use_matching_cache_busting_version(self):
-        self.assertIn('href="/static/styles.css?v=7"', self.html)
-        self.assertIn('src="/static/app.js?v=7"', self.html)
+        self.assertIn('href="/static/styles.css?v=8"', self.html)
+        self.assertIn('src="/static/app.js?v=8"', self.html)
 
     def test_calendar_navigation_is_separate_from_child_card(self):
         profile_start = self.html.index('<section class="profile-card panel">')
@@ -52,13 +49,16 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertNotIn("overviewTab", profile_markup)
         self.assertNotIn("calendarTab", profile_markup)
 
-    def test_parent_overview_blocks_are_rendered(self):
-        self.assertIn("summaryGrid", self.html)
-        self.assertIn("attentionList", self.html)
-        self.assertIn("upcomingList", self.html)
-        self.assertIn("summaryCard", self.app)
-        self.assertIn("attention-card", self.app)
-        self.assertIn("upcoming-card", self.app)
+    def test_customer_removed_overview_blocks_are_not_rendered(self):
+        self.assertNotIn("summaryGrid", self.html)
+        self.assertNotIn("attentionList", self.html)
+        self.assertNotIn("upcomingList", self.html)
+        self.assertNotIn("Коротко о посещениях", self.html)
+        self.assertNotIn("Требует внимания", self.html)
+        self.assertNotIn("Ближайшие занятия", self.html)
+        self.assertNotIn("summaryCard", self.app)
+        self.assertNotIn("attention-card", self.app)
+        self.assertNotIn("upcoming-card", self.app)
 
     def test_old_voice_note_workflow_is_not_rendered(self):
         self.assertNotIn("audioInput", self.html)
@@ -79,8 +79,8 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn('const isCalendarContext = isCalendar || (isDirection && directionSource === "calendar");', self.app)
 
     def test_mobile_summary_grid_is_compact_and_direction_heading_stacks(self):
-        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", self.styles)
-        self.assertIn(".summary-card", self.styles)
+        self.assertIn("@media (max-width: 620px)", self.styles)
+        self.assertIn(".direction-grid", self.styles)
         self.assertIn("align-items: start;", self.styles)
 
     def test_calendar_and_goals_have_timeline_hooks(self):

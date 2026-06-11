@@ -151,78 +151,10 @@ select {
     margin-bottom: 16px;
 }
 
-.overview-hero {
-    display: grid;
-    grid-template-columns: minmax(190px, .7fr) 2fr;
-    gap: 18px;
-    margin-bottom: 16px;
-    background: linear-gradient(135deg, #ffffff 0%, #fbf8f0 100%);
-}
-
-.summary-grid, .direction-grid {
+.direction-grid {
     display: grid;
     gap: 14px;
     margin-bottom: 16px;
-}
-
-.summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin: 0;
-}
-
-.summary-card {
-    display: grid;
-    gap: 5px;
-    min-height: 104px;
-    border: 1px solid rgba(222, 215, 202, .9);
-    border-radius: 9px;
-    padding: 14px;
-    background: #fffdf9;
-    box-shadow: var(--shadow-soft);
-}
-
-.summary-card .eyebrow {
-    color: #59665f;
-}
-
-.summary-value {
-    color: var(--ink);
-    font-size: 27px;
-    line-height: 1;
-}
-
-.summary-actual {
-    border-color: rgba(47, 125, 122, .28);
-    background: var(--primary-soft);
-}
-
-.summary-delta {
-    border-color: rgba(180, 106, 85, .22);
-    background: #fff7ee;
-}
-
-.summary-route {
-    border-color: rgba(86, 118, 165, .22);
-    background: #f2f6fb;
-}
-
-.parent-dashboard {
-    display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(340px, .95fr);
-    gap: 16px;
-    margin-bottom: 16px;
-}
-
-.attention-panel {
-    background:
-        linear-gradient(180deg, rgba(255, 244, 217, .58), rgba(255, 255, 255, 0) 170px),
-        var(--surface);
-}
-
-.upcoming-panel {
-    background:
-        linear-gradient(180deg, rgba(229, 241, 238, .58), rgba(255, 255, 255, 0) 170px),
-        var(--surface);
 }
 
 .direction-grid {
@@ -250,16 +182,6 @@ select {
 .visit-card p, .goal-card p {
     margin: 6px 0 0;
     line-height: 1.4;
-}
-
-.attention-card {
-    border-left: 4px solid var(--amber);
-    background: #fffaf0;
-}
-
-.upcoming-card {
-    border-left: 4px solid var(--primary);
-    background: #fbfefd;
 }
 
 .reason {
@@ -497,11 +419,7 @@ select {
 }
 
 @media (max-width: 900px) {
-    .overview-hero, .parent-dashboard {
-        grid-template-columns: 1fr;
-    }
-
-    .summary-grid, .direction-grid {
+    .direction-grid {
         grid-template-columns: 1fr 1fr;
     }
 
@@ -520,24 +438,6 @@ select {
     .app-nav {
         display: grid;
         grid-template-columns: 1fr 1fr;
-    }
-
-    .overview-hero {
-        gap: 12px;
-    }
-
-    .summary-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-    }
-
-    .summary-card {
-        min-height: 108px;
-        padding: 13px;
-    }
-
-    .summary-value {
-        font-size: 24px;
     }
 
     .direction-grid {

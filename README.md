@@ -2,7 +2,7 @@
 
 Local read-only demo for discussing a parent portal with a school supporting children with ASD.
 
-The parent sees one anonymized child, monthly planned and attended hours, exceptions that need attention, upcoming visits, a shared calendar, and direction-specific goals with progress history.
+The parent sees one anonymized child, a direction overview, a shared calendar, and direction-specific visits and goals with progress history.
 
 This is a discovery demo. It uses anonymized data and simulates a parent's access to one child. It is not production authorization or compliance software.
 
@@ -35,16 +35,16 @@ http://127.0.0.1:8765
 
 ## Demo Script
 
-1. Open the overview and point out monthly planned vs attended hours.
-2. Review `Требует внимания` to explain a partial visit, transfer, cancellation, and absence.
-3. Open `Календарь` and select a visit.
+1. Open the overview and point out that the parent starts from the child's active directions.
+2. Open a direction card to review that direction's visits, received hours, and goals.
+3. Open `Календарь` and select a visit to show date-based navigation into a direction.
 4. Open the `ABA` direction and show a measurable goal with its small trend chart.
 5. Open `Психолог` and show a goal whose progress is explained with dated comments instead of a misleading percentage.
-6. Switch to May 2026 to show month comparison behavior.
+6. Switch to May 2026 to show month filtering and comparison behavior inside direction details.
 
 Use the customer conversation to learn:
 
-- which exceptions parents must see and which should remain internal;
+- which exceptions parents should see in the calendar or direction detail, if any, and which should remain internal;
 - who records planned and actual attendance;
 - how each specialist updates goals;
 - which goal metrics are genuinely meaningful for parents.

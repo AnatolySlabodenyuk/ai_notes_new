@@ -98,12 +98,6 @@ function badge(status) {
     return node("span", `badge status-${status}`, STATUS_LABELS[status] || status);
 }
 
-function summaryCard(label, value, detail, tone) {
-    const card = node("article", `summary-card summary-${tone}`);
-    card.append(node("span", "eyebrow", label), node("strong", "summary-value", value), node("small", "muted", detail));
-    return card;
-}
-
 function visitCard(visit, direction, modifier = "") {
     const card = node("article", `visit-card ${modifier}`.trim());
     const top = node("div", "visit-top");
@@ -128,27 +122,6 @@ function renderProfile() {
 }
 
 function renderOverview() {
-    const overview = state.snapshot.overview;
-    const delta = overview.comparison.actual_minutes_delta;
-    $("summaryGrid").replaceChildren(
-        summaryCard("План", formatMinutes(overview.planned_minutes), "На месяц по всем направлениям", "planned"),
-        summaryCard("Получено", formatMinutes(overview.actual_minutes), "Фактически посещённые занятия", "actual"),
-        summaryCard("Динамика", `${delta >= 0 ? "+" : ""}${formatMinutes(delta)}`, "К прошлому месяцу", "delta"),
-        summaryCard("Маршрут", String(state.snapshot.directions.length), "Активных направлений", "route"),
-    );
-
-    const attention = overview.attention_items.map((visit) => {
-        const direction = state.snapshot.directions.find((item) => item.id === visit.direction_id);
-        return visitCard(visit, direction, "attention-card");
-    });
-    $("attentionList").replaceChildren(...(attention.length ? attention : [empty("Отклонений за месяц нет.")]));
-
-    const upcoming = overview.upcoming_visits.map((visit) => {
-        const direction = state.snapshot.directions.find((item) => item.id === visit.direction_id);
-        return visitCard(visit, direction, "upcoming-card");
-    });
-    $("upcomingList").replaceChildren(...(upcoming.length ? upcoming : [empty("Ближайших занятий пока нет.")]));
-
     const cards = state.snapshot.directions.map((direction) => {
         const card = node("button", "direction-card");
         card.type = "button";
