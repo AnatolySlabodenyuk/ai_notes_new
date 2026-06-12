@@ -29,3 +29,6 @@ desktop.ini
 
 # Папка с данными (ваше правило)
 data/
+
+# AI
+AGENTS.md
