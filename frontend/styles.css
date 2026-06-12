@@ -20,6 +20,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     margin: 0;
     background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 240px),
@@ -417,6 +421,87 @@ select {
     background: #fffdf9;
 }
 
+.topbar-controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.admin-layout {
+    display: grid;
+    gap: 18px;
+}
+
+.admin-form {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.admin-form-wide {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.admin-form input,
+.admin-form select,
+.admin-row input,
+.admin-row select,
+.field-label select {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    padding: 10px 12px;
+    font: inherit;
+}
+
+.admin-form button,
+.admin-row button {
+    border: 0;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 12px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.field-label {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    max-width: 360px;
+    color: var(--muted);
+    font-size: .9rem;
+}
+
+.admin-table {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.admin-row {
+    display: grid;
+    grid-template-columns: 1.1fr 90px repeat(4, minmax(0, 1fr)) auto auto;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff;
+}
+
+.admin-row.archived {
+    opacity: .68;
+    background: #fffdf9;
+}
+
 @media (max-width: 900px) {
     .direction-grid {
         grid-template-columns: 1fr 1fr;
@@ -436,7 +521,7 @@ select {
 
     .app-nav {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
     }
 
     .direction-grid {
@@ -464,5 +549,14 @@ select {
 
     .sparkline {
         margin-left: 0;
+    }
+
+    .topbar-controls,
+    .admin-form,
+    .admin-form-wide,
+    .admin-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        justify-content: stretch;
     }
 }

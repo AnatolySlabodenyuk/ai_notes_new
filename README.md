@@ -1,29 +1,28 @@
-# Electronic Child Journal MVP
+# Electronic Child Journal
 
-Local read-only demo for discussing a parent portal with a school supporting children with ASD.
+Local product demo for an electronic child journal used by a school or center supporting children with ASD. The app now has two surfaces:
 
-The parent sees one anonymized child, a direction overview, a shared calendar, and direction-specific visits and goals
-with progress history. The interface is intentionally narrow: it demonstrates parent-facing navigation and content, not
-staff workflows, authentication, audio processing, or AI generation.
+- a read-only parent journal for reviewing one selected child's directions, calendar, visits, and goals;
+- an internal operational admin for maintaining children, the shared direction catalog, child-direction assignments, child-specific goals, and one-off calendar visits.
 
-This is a discovery demo. It uses anonymized data and simulates a parent's access to one child. It is not production
-authorization or compliance software.
+This is still a local discovery/product demo. It uses anonymized data and does not implement production login, authorization, audit logging, or compliance guarantees.
 
 ## Current Product Surface
 
-- `Обзор` shows the child's active directions as cards with monthly planned and actual hours.
-- `Календарь` shows all visits for the selected month, grouped by date and color-coded by direction.
+- `Обзор` shows the selected child's active directions as cards with monthly planned and actual hours.
+- `Календарь` shows all active visits for the selected child and month, grouped by date and color-coded by direction.
 - Direction detail pages show visits, monthly comparison against the previous month, and goal progress history.
+- `Админка` lets staff create, edit, archive, and restore children and directions; connect directions to a child; and manage that child's goals and one-off visit schedule.
+- The parent journal can load a specific child with `child_id`, while keeping the previous first-active-child fallback.
 - The seeded demo supports May 2026 and June 2026.
-- The frontend is read-only and talks only to `GET /api/journal?month=YYYY-MM`.
 
 ## Project Layout
 
 ```text
-backend/   Python HTTP server, snapshot builder, SQLite demo store, seed data
+backend/   Python HTTP server, snapshot builder, SQLite store, seed data
 frontend/  Static HTML, CSS, and JavaScript application
-tests/     unittest coverage for API, store, journal logic, and static frontend safety
-docs/      Product, design, implementation, and historical planning notes
+tests/     unittest coverage for API, store, journal logic, and static frontend checks
+docs/      Current docs plus historical planning artifacts
 data/      Ignored local SQLite demo database
 ```
 
@@ -38,8 +37,7 @@ python -m pip install -r requirements.txt
 python -m backend.server
 ```
 
-The `tzdata` package is required on Windows because Python does not normally
-have a system timezone database there.
+The `tzdata` package is required on Windows because Python does not normally have a system timezone database there.
 
 If the existing `.venv` points to a removed Python installation, recreate it:
 
@@ -58,30 +56,57 @@ Set `LOG_LEVEL=DEBUG` or another standard Python logging level to change server 
 
 ## Demo Script
 
-1. Open the overview and point out that the parent starts from the child's active directions.
+1. Open the overview and point out the selected child dropdown.
 2. Open a direction card to review that direction's visits, received hours, and goals.
 3. Open `Календарь` and select a visit to show date-based navigation into a direction.
-4. Open the `ABA` direction and show a measurable goal with its small trend chart.
-5. Open `Психолог` and show a goal whose progress is explained with dated comments instead of a misleading percentage.
-6. Switch to May 2026 to show month filtering and comparison behavior inside direction details.
+4. Open `ABA` and show a measurable goal with its small trend chart.
+5. Open `Психолог` and show a goal whose progress is explained with dated comments.
+6. Switch to May 2026 to show month filtering and comparison behavior.
+7. Open `Админка`, add or edit a child, connect a direction, add a goal, and add a one-off scheduled visit.
 
 Use the customer conversation to learn:
 
 - which exceptions parents should see in the calendar or direction detail, if any, and which should remain internal;
 - who records planned and actual attendance;
 - how each specialist updates goals;
-- which goal metrics are genuinely meaningful for parents.
+- which goal metrics are genuinely meaningful for parents;
+- which admin workflows need roles, audit, or bulk operations before production.
 
 ## API
 
 ```text
 GET /api/journal?month=YYYY-MM
+GET /api/journal?month=YYYY-MM&child_id=<child-id>
 GET /api/health
+
+GET  /api/admin/children
+POST /api/admin/children
+PUT  /api/admin/children/{child_id}
+POST /api/admin/children/{child_id}/archive
+POST /api/admin/children/{child_id}/restore
+
+GET  /api/admin/directions
+POST /api/admin/directions
+PUT  /api/admin/directions/{direction_id}
+POST /api/admin/directions/{direction_id}/archive
+POST /api/admin/directions/{direction_id}/restore
+
+GET    /api/admin/children/{child_id}/directions
+POST   /api/admin/children/{child_id}/directions
+DELETE /api/admin/children/{child_id}/directions/{direction_id}
+
+GET    /api/admin/children/{child_id}/goals
+POST   /api/admin/children/{child_id}/goals
+PUT    /api/admin/children/{child_id}/goals/{goal_id}
+DELETE /api/admin/children/{child_id}/goals/{goal_id}
+
+GET    /api/admin/children/{child_id}/visits
+POST   /api/admin/children/{child_id}/visits
+PUT    /api/admin/children/{child_id}/visits/{visit_id}
+DELETE /api/admin/children/{child_id}/visits/{visit_id}
 ```
 
-The journal endpoint returns one anonymized parent-cabinet snapshot with `child`, `overview`, `directions`, and
-`calendar` sections. Invalid or missing months return `400 invalid_month`. Store initialization or seed errors return
-`500 store_error`.
+The journal endpoint returns a computed parent-cabinet snapshot with `child`, `overview`, `directions`, and `calendar` sections. Invalid or missing months return `400 invalid_month`. Admin validation errors return `400 validation_error`. Store initialization or seed errors return `500 store_error`.
 
 ## Test
 
@@ -105,12 +130,11 @@ Demo state is stored in a local SQLite database:
 data/app.sqlite3
 ```
 
-If the local schema version changes, the app recreates the ignored demo database from `backend/demo_seed.json`. Do not
-place real child personal data in the seed or local demo database.
+If the local schema version changes, the app recreates the ignored demo database from `backend/demo_seed.json`. The current SQLite schema version is `4`. Do not place real child personal data in the seed or local demo database.
 
 ## Documentation
 
 - `docs/README.md` indexes current and historical documentation.
 - `docs/DESIGN.md` describes the current UX rules and visual direction.
-- `docs/implementation-plan.md` and `docs/parent-portal-mvp-plan.md` capture implementation and product planning
-  context.
+- `docs/implementation-plan.md` captures current backend, frontend, data, API, and test context.
+- `docs/parent-portal-mvp-plan.md` captures the current product/demo plan.

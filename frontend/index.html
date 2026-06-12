@@ -4,7 +4,7 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>Электронный журнал ребёнка</title>
-    <link rel="stylesheet" href="/static/styles.css?v=8"/>
+    <link rel="stylesheet" href="/static/styles.css?v=10"/>
 </head>
 <body>
 <main class="app-shell">
@@ -13,13 +13,19 @@
             <p class="eyebrow">Личный кабинет родителя</p>
             <h1>Электронный журнал ребёнка</h1>
         </div>
-        <label class="month-control">
-            <span>Месяц</span>
-            <select id="monthSelect">
-                <option value="2026-06">Июнь 2026</option>
-                <option value="2026-05">Май 2026</option>
-            </select>
-        </label>
+        <div class="topbar-controls">
+            <label class="month-control">
+                <span>Ребёнок</span>
+                <select id="journalChildSelect"></select>
+            </label>
+            <label class="month-control">
+                <span>Месяц</span>
+                <select id="monthSelect">
+                    <option value="2026-06">Июнь 2026</option>
+                    <option value="2026-05">Май 2026</option>
+                </select>
+            </label>
+        </div>
     </header>
 
     <div class="demo-note">
@@ -30,9 +36,10 @@
     <nav class="app-nav" aria-label="Разделы журнала">
         <a href="#/overview" id="overviewTab">Обзор</a>
         <a href="#/calendar" id="calendarTab">Календарь</a>
+        <a href="#/admin" id="adminTab">Админка</a>
     </nav>
 
-    <section class="profile-card panel">
+    <section class="profile-card panel" id="profileCard">
         <div>
             <p class="eyebrow">Карточка ребёнка</p>
             <h2 id="childName">Загрузка...</h2>
@@ -89,7 +96,108 @@
             <div class="goal-list" id="goalList"></div>
         </section>
     </section>
+
+    <section class="admin-layout" id="adminView" hidden>
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Операционная админка</p>
+                    <h2>Дети</h2>
+                </div>
+            </div>
+            <form class="admin-form" id="childForm">
+                <input name="display_name" placeholder="Имя в карточке" required>
+                <input name="age_label" placeholder="Возраст" required>
+                <input name="focus" placeholder="Фокус сопровождения" required>
+                <button type="submit">Добавить ребёнка</button>
+            </form>
+            <div class="admin-table" id="childrenAdminList"></div>
+        </section>
+
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Общий справочник</p>
+                    <h2>Направления</h2>
+                </div>
+            </div>
+            <form class="admin-form" id="directionForm">
+                <input name="title" placeholder="Название" required>
+                <input name="slug" placeholder="slug" required>
+                <input name="color" placeholder="#5676a5" required>
+                <input name="sort_order" type="number" placeholder="Порядок" value="10" required>
+                <button type="submit">Добавить направление</button>
+            </form>
+            <div class="admin-table" id="directionsAdminList"></div>
+        </section>
+
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Карточка ребёнка</p>
+                    <h2>Направления ребёнка</h2>
+                </div>
+            </div>
+            <label class="field-label">
+                <span>Выбранный ребёнок</span>
+                <select id="adminChildSelect"></select>
+            </label>
+            <form class="admin-form" id="assignDirectionForm">
+                <select name="direction_id" required></select>
+                <button type="submit">Подключить</button>
+            </form>
+            <div class="admin-table" id="childDirectionsAdminList"></div>
+        </section>
+
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Индивидуальная работа</p>
+                    <h2>Цели</h2>
+                </div>
+            </div>
+            <form class="admin-form admin-form-wide" id="goalForm">
+                <select name="direction_id" required></select>
+                <input name="title" placeholder="Цель" required>
+                <input name="description" placeholder="Описание" required>
+                <select name="status" required>
+                    <option value="active">В работе</option>
+                    <option value="progress">Есть прогресс</option>
+                    <option value="achieved">Достигнута</option>
+                    <option value="paused">Приостановлена</option>
+                </select>
+                <input name="metric_label" placeholder="Метрика">
+                <input name="metric_target" type="number" min="0" step="0.1" placeholder="Цель по метрике">
+                <button type="submit">Добавить цель</button>
+            </form>
+            <div class="admin-table" id="goalsAdminList"></div>
+        </section>
+
+        <section class="panel">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow">Календарь</p>
+                    <h2>Расписание</h2>
+                </div>
+            </div>
+            <form class="admin-form admin-form-wide" id="visitForm">
+                <select name="direction_id" required></select>
+                <input name="scheduled_start" type="datetime-local" required>
+                <input name="scheduled_end" type="datetime-local" required>
+                <select name="status" required>
+                    <option value="scheduled">Запланировано</option>
+                    <option value="completed">Проведено полностью</option>
+                    <option value="partial">Проведено частично</option>
+                    <option value="cancelled">Отменено</option>
+                    <option value="absent">Ребёнок отсутствовал</option>
+                    <option value="rescheduled">Перенесено</option>
+                </select>
+                <button type="submit">Добавить занятие</button>
+            </form>
+            <div class="admin-table" id="visitsAdminList"></div>
+        </section>
+    </section>
 </main>
-<script src="/static/app.js?v=8"></script>
+<script src="/static/app.js?v=10"></script>
 </body>
 </html>

@@ -13,7 +13,7 @@ from backend.store import DemoStore, StoreError
 
 
 class _BrokenStore:
-    def load_journal_data(self):
+    def load_journal_data(self, child_id=None):
         raise StoreError("broken seed")
 
 
@@ -32,6 +32,19 @@ class JournalApiTests(unittest.TestCase):
 
     def read_json(self, url):
         with urlopen(url, timeout=2) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+
+    def request_json(self, url, method, payload=None):
+        from urllib.request import Request
+
+        body = b"" if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = Request(
+            url,
+            data=body,
+            method=method,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        with urlopen(request, timeout=2) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
 
     def read_error(self, url):
@@ -82,6 +95,115 @@ class JournalApiTests(unittest.TestCase):
 
             self.assertEqual(status, 404)
             self.assertEqual(payload["error"]["code"], "error")
+
+    def test_admin_child_crud_and_journal_child_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_url = self.start_server(DemoStore(Path(tmp) / "app.sqlite3"))
+
+            status, child = self.request_json(
+                f"{base_url}/api/admin/children",
+                "POST",
+                {"display_name": "Ребёнок Б", "age_label": "6 лет", "focus": "адаптация"},
+            )
+            update_status, updated = self.request_json(
+                f"{base_url}/api/admin/children/{child['id']}",
+                "PUT",
+                {"display_name": "Ребёнок Бета"},
+            )
+            journal_status, journal = self.read_json(
+                f"{base_url}/api/journal?month=2026-06&child_id={child['id']}"
+            )
+
+            self.assertEqual(status, 201)
+            self.assertEqual(update_status, 200)
+            self.assertEqual(updated["display_name"], "Ребёнок Бета")
+            self.assertEqual(journal_status, 200)
+            self.assertEqual(journal["child"]["id"], child["id"])
+
+    def test_admin_direction_goal_and_visit_endpoints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_url = self.start_server(DemoStore(Path(tmp) / "app.sqlite3"))
+
+            _, child = self.request_json(
+                f"{base_url}/api/admin/children",
+                "POST",
+                {"display_name": "Ребёнок Б", "age_label": "6 лет", "focus": "адаптация"},
+            )
+            _, direction = self.request_json(
+                f"{base_url}/api/admin/directions",
+                "POST",
+                {"slug": "music", "title": "Музыка", "color": "#445566", "sort_order": 7},
+            )
+            assign_status, _ = self.request_json(
+                f"{base_url}/api/admin/children/{child['id']}/directions",
+                "POST",
+                {"direction_id": direction["id"]},
+            )
+            goal_status, goal = self.request_json(
+                f"{base_url}/api/admin/children/{child['id']}/goals",
+                "POST",
+                {
+                    "direction_id": direction["id"],
+                    "title": "Петь короткую фразу",
+                    "description": "Повторять знакомую строку.",
+                    "status": "active",
+                },
+            )
+            visit_status, visit = self.request_json(
+                f"{base_url}/api/admin/children/{child['id']}/visits",
+                "POST",
+                {
+                    "direction_id": direction["id"],
+                    "scheduled_start": "2026-06-10T10:00:00+03:00",
+                    "scheduled_end": "2026-06-10T11:00:00+03:00",
+                    "status": "scheduled",
+                },
+            )
+
+            self.assertEqual(assign_status, 200)
+            self.assertEqual(goal_status, 201)
+            self.assertEqual(goal["title"], "Петь короткую фразу")
+            self.assertEqual(visit_status, 201)
+            self.assertEqual(visit["direction_id"], direction["id"])
+
+    def test_admin_validation_errors_return_400(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_url = self.start_server(DemoStore(Path(tmp) / "app.sqlite3"))
+
+            from urllib.request import Request
+
+            bad_child = Request(
+                f"{base_url}/api/admin/children",
+                data=json.dumps({"display_name": ""}).encode("utf-8"),
+                method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            with self.assertRaises(HTTPError) as caught_child:
+                urlopen(bad_child, timeout=2)
+            child_error = json.loads(caught_child.exception.read().decode("utf-8"))
+
+            self.assertEqual(caught_child.exception.code, 400)
+            self.assertEqual(child_error["error"]["code"], "validation_error")
+
+            request = Request(
+                f"{base_url}/api/admin/children/child-a/visits",
+                data=json.dumps(
+                    {
+                        "direction_id": "direction-aba",
+                        "scheduled_start": "2026-06-10T11:00:00+03:00",
+                        "scheduled_end": "2026-06-10T10:00:00+03:00",
+                        "status": "scheduled",
+                    }
+                ).encode("utf-8"),
+                method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            with self.assertRaises(HTTPError) as caught:
+                urlopen(request, timeout=2)
+            error = json.loads(caught.exception.read().decode("utf-8"))
+
+            self.assertEqual(caught.exception.code, 400)
+            self.assertEqual(error["error"]["code"], "validation_error")
 
 
 if __name__ == "__main__":

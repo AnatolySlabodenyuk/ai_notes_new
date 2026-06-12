@@ -13,8 +13,7 @@ class FrontendStaticSafetyTests(unittest.TestCase):
 
     def test_frontend_uses_read_only_journal_endpoint(self):
         self.assertIn("/api/journal?month=", self.app)
-        self.assertNotIn("/api/children", self.app)
-        self.assertNotIn("method: \"POST\"", self.app)
+        self.assertIn("/api/admin/children", self.app)
 
     def test_hash_routes_cover_overview_calendar_and_direction(self):
         self.assertIn("#/overview", self.app)
@@ -37,11 +36,11 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("Календарь", self.html)
 
     def test_static_assets_use_matching_cache_busting_version(self):
-        self.assertIn('href="/static/styles.css?v=8"', self.html)
-        self.assertIn('src="/static/app.js?v=8"', self.html)
+        self.assertIn('href="/static/styles.css?v=10"', self.html)
+        self.assertIn('src="/static/app.js?v=10"', self.html)
 
     def test_calendar_navigation_is_separate_from_child_card(self):
-        profile_start = self.html.index('<section class="profile-card panel">')
+        profile_start = self.html.index('<section class="profile-card panel" id="profileCard">')
         profile_end = self.html.index("</section>", profile_start)
         profile_markup = self.html[profile_start:profile_end]
 
@@ -90,6 +89,30 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("goal-lead", self.app)
         self.assertIn(".calendar-day::before", self.styles)
         self.assertIn(".goal-update::before", self.styles)
+
+    def test_admin_routes_forms_and_mutation_calls_are_present(self):
+        self.assertIn("#/admin", self.html)
+        self.assertIn("adminView", self.html)
+        self.assertIn("childForm", self.html)
+        self.assertIn("directionForm", self.html)
+        self.assertIn("goalForm", self.html)
+        self.assertIn("visitForm", self.html)
+        self.assertIn("loadAdmin", self.app)
+        self.assertIn('mutate("/api/admin/children", "POST"', self.app)
+        self.assertIn('"PUT"', self.app)
+        self.assertIn('"DELETE"', self.app)
+        self.assertIn("/api/admin/directions", self.app)
+        self.assertIn("/goals", self.app)
+        self.assertIn("/visits", self.app)
+
+    def test_admin_layout_has_operational_sections(self):
+        self.assertIn("Админка", self.html)
+        self.assertIn("Дети", self.html)
+        self.assertIn("Направления", self.html)
+        self.assertIn("Цели", self.html)
+        self.assertIn("Расписание", self.html)
+        self.assertIn(".admin-layout", self.styles)
+        self.assertIn(".admin-table", self.styles)
 
 
 if __name__ == "__main__":

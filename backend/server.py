@@ -54,24 +54,39 @@ class AppHandler(BaseHTTPRequestHandler):
             if parsed_url.path == "/api/journal":
                 self._serve_journal(parsed_url.query)
                 return
+            if parsed_url.path.startswith("/api/admin/"):
+                self._serve_admin_get(parsed_url.path)
+                return
             self._json_error("Not found", HTTPStatus.NOT_FOUND)
         except StoreError as exc:
             self._json_error(str(exc), HTTPStatus.INTERNAL_SERVER_ERROR, "store_error")
 
     def do_POST(self) -> None:
         self._begin_request()
-        self._json_error("Not found", HTTPStatus.NOT_FOUND)
+        self._serve_admin_mutation("POST")
+
+    def do_PUT(self) -> None:
+        self._begin_request()
+        self._serve_admin_mutation("PUT")
+
+    def do_DELETE(self) -> None:
+        self._begin_request()
+        self._serve_admin_mutation("DELETE")
 
     def _serve_journal(self, query: str) -> None:
         month_values = parse_qs(query).get("month", [])
         try:
+            params = parse_qs(query)
+            month_values = params.get("month", [])
+            child_values = params.get("child_id", [])
             month = parse_month(month_values[0]) if len(month_values) == 1 else ""
             if not month:
                 raise ValueError("Missing month.")
+            child_id = child_values[0] if len(child_values) == 1 else None
         except ValueError as exc:
             self._json_error(str(exc), HTTPStatus.BAD_REQUEST, "invalid_month")
             return
-        data = STORE.load_journal_data()
+        data = STORE.load_journal_data(child_id)
         snapshot = build_journal_snapshot(
             month=month,
             child=data["child"],
@@ -82,6 +97,113 @@ class AppHandler(BaseHTTPRequestHandler):
             now=datetime.now(SCHOOL_TIMEZONE).isoformat(),
         )
         self._json_response(snapshot)
+
+    def _serve_admin_get(self, path: str) -> None:
+        try:
+            parts = self._path_parts(path)
+            if parts == ["api", "admin", "children"]:
+                self._json_response({"children": STORE.list_children()})
+                return
+            if parts == ["api", "admin", "directions"]:
+                self._json_response({"directions": STORE.list_directions()})
+                return
+            if len(parts) == 5 and parts[:3] == ["api", "admin", "children"]:
+                child_id = parts[3]
+                if parts[4] == "directions":
+                    self._json_response({"child_directions": STORE.list_child_directions(child_id)})
+                    return
+                if parts[4] == "goals":
+                    self._json_response({"goals": STORE.list_goals(child_id)})
+                    return
+                if parts[4] == "visits":
+                    self._json_response({"visits": STORE.list_visits(child_id)})
+                    return
+            self._json_error("Not found", HTTPStatus.NOT_FOUND)
+        except StoreError as exc:
+            self._json_error(str(exc), HTTPStatus.BAD_REQUEST, "validation_error")
+
+    def _serve_admin_mutation(self, method: str) -> None:
+        parsed_url = urlparse(self.path)
+        try:
+            parts = self._path_parts(parsed_url.path)
+            payload = {} if method == "DELETE" else self._read_json_body()
+            if method == "POST" and parts == ["api", "admin", "children"]:
+                self._json_response(STORE.create_child(payload), HTTPStatus.CREATED)
+                return
+            if method == "PUT" and len(parts) == 4 and parts[:3] == ["api", "admin", "children"]:
+                self._json_response(STORE.update_child(parts[3], payload))
+                return
+            if method == "POST" and len(parts) == 5 and parts[:3] == ["api", "admin", "children"]:
+                if parts[4] == "archive":
+                    self._json_response(STORE.archive_child(parts[3]))
+                    return
+                if parts[4] == "restore":
+                    self._json_response(STORE.restore_child(parts[3]))
+                    return
+            if method == "POST" and parts == ["api", "admin", "directions"]:
+                self._json_response(STORE.create_direction(payload), HTTPStatus.CREATED)
+                return
+            if method == "PUT" and len(parts) == 4 and parts[:3] == ["api", "admin", "directions"]:
+                self._json_response(STORE.update_direction(parts[3], payload))
+                return
+            if method == "POST" and len(parts) == 5 and parts[:3] == ["api", "admin", "directions"]:
+                if parts[4] == "archive":
+                    self._json_response(STORE.archive_direction(parts[3]))
+                    return
+                if parts[4] == "restore":
+                    self._json_response(STORE.restore_direction(parts[3]))
+                    return
+            if len(parts) >= 5 and parts[:3] == ["api", "admin", "children"]:
+                child_id = parts[3]
+                if method == "POST" and len(parts) == 5 and parts[4] == "directions":
+                    direction_id = self._required_payload_id(payload, "direction_id")
+                    self._json_response(STORE.assign_direction(child_id, direction_id))
+                    return
+                if method == "DELETE" and len(parts) == 6 and parts[4] == "directions":
+                    self._json_response(STORE.remove_child_direction(child_id, parts[5]))
+                    return
+                if method == "POST" and len(parts) == 5 and parts[4] == "goals":
+                    self._json_response(STORE.create_goal(child_id, payload), HTTPStatus.CREATED)
+                    return
+                if method == "PUT" and len(parts) == 6 and parts[4] == "goals":
+                    self._json_response(STORE.update_goal(child_id, parts[5], payload))
+                    return
+                if method == "DELETE" and len(parts) == 6 and parts[4] == "goals":
+                    self._json_response(STORE.archive_goal(child_id, parts[5]))
+                    return
+                if method == "POST" and len(parts) == 5 and parts[4] == "visits":
+                    self._json_response(STORE.create_visit(child_id, payload), HTTPStatus.CREATED)
+                    return
+                if method == "PUT" and len(parts) == 6 and parts[4] == "visits":
+                    self._json_response(STORE.update_visit(child_id, parts[5], payload))
+                    return
+                if method == "DELETE" and len(parts) == 6 and parts[4] == "visits":
+                    self._json_response(STORE.archive_visit(child_id, parts[5]))
+                    return
+            self._json_error("Not found", HTTPStatus.NOT_FOUND)
+        except (StoreError, ValueError) as exc:
+            self._json_error(str(exc), HTTPStatus.BAD_REQUEST, "validation_error")
+
+    def _path_parts(self, path: str) -> list[str]:
+        return [part for part in path.split("/") if part]
+
+    def _read_json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0:
+            return {}
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("Request body must be valid JSON.") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("Request body must be a JSON object.")
+        return payload
+
+    def _required_payload_id(self, payload: dict, field: str) -> str:
+        value = payload.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Missing required field: {field}")
+        return value.strip()
 
     def _serve_static(self, request_path: str) -> None:
         relative = "index.html" if request_path == "/" else request_path.replace("/static/", "", 1)

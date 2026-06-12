@@ -22,7 +22,7 @@ class JournalStoreTests(unittest.TestCase):
             self.assertGreaterEqual(len(data["goal_updates"]), 1)
             with closing(sqlite3.connect(store.path)) as connection:
                 version = connection.execute("SELECT version FROM schema_meta").fetchone()[0]
-            self.assertEqual(version, 3)
+            self.assertEqual(version, 4)
 
     def test_existing_old_database_is_replaced_when_schema_version_is_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -92,6 +92,111 @@ class JournalStoreTests(unittest.TestCase):
 
             with self.assertRaisesRegex(StoreError, "scheduled duration"):
                 store.load_journal_data()
+
+    def test_store_manages_children_and_journal_selects_active_child(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DemoStore(Path(tmp) / "app.sqlite3")
+
+            child = store.create_child(
+                {"display_name": "Ребёнок Б", "age_label": "6 лет", "focus": "адаптация"}
+            )
+            store.update_child(child["id"], {"display_name": "Ребёнок Бета", "focus": "коммуникация"})
+
+            selected = store.load_journal_data(child["id"])
+            children = store.list_children()
+
+            self.assertEqual(selected["child"]["display_name"], "Ребёнок Бета")
+            self.assertEqual(selected["child"]["age_label"], "6 лет")
+            self.assertTrue(any(item["id"] == child["id"] for item in children))
+
+    def test_archived_child_is_not_available_for_parent_journal_until_restored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DemoStore(Path(tmp) / "app.sqlite3")
+            child = store.create_child(
+                {"display_name": "Ребёнок Б", "age_label": "6 лет", "focus": "адаптация"}
+            )
+
+            archived = store.archive_child(child["id"])
+
+            self.assertIsNotNone(archived["archived_at"])
+            with self.assertRaisesRegex(StoreError, "Child is archived"):
+                store.load_journal_data(child["id"])
+
+            restored = store.restore_child(child["id"])
+            self.assertIsNone(restored["archived_at"])
+            self.assertEqual(store.load_journal_data(child["id"])["child"]["id"], child["id"])
+
+    def test_store_manages_directions_assignments_goals_and_visits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DemoStore(Path(tmp) / "app.sqlite3")
+            child = store.create_child(
+                {"display_name": "Ребёнок Б", "age_label": "6 лет", "focus": "адаптация"}
+            )
+            direction = store.create_direction(
+                {"slug": "music", "title": "Музыка", "color": "#445566", "sort_order": 7}
+            )
+
+            store.assign_direction(child["id"], direction["id"])
+            goal = store.create_goal(
+                child["id"],
+                {
+                    "direction_id": direction["id"],
+                    "title": "Петь короткую фразу",
+                    "description": "Повторять знакомую строку.",
+                    "status": "active",
+                    "metric_label": "повторов",
+                    "metric_target": 5,
+                    "sort_order": 1,
+                },
+            )
+            visit = store.create_visit(
+                child["id"],
+                {
+                    "direction_id": direction["id"],
+                    "scheduled_start": "2026-06-10T10:00:00+03:00",
+                    "scheduled_end": "2026-06-10T11:00:00+03:00",
+                    "status": "scheduled",
+                },
+            )
+
+            data = store.load_journal_data(child["id"])
+
+            self.assertEqual(data["directions"][0]["id"], direction["id"])
+            self.assertEqual(data["goals"][0]["id"], goal["id"])
+            self.assertEqual(data["visits"][0]["id"], visit["id"])
+
+            store.remove_child_direction(child["id"], direction["id"])
+            self.assertEqual(store.load_journal_data(child["id"])["directions"], [])
+            self.assertTrue(any(item["id"] == direction["id"] for item in store.list_directions()))
+
+    def test_store_validates_admin_goal_and_visit_payloads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DemoStore(Path(tmp) / "app.sqlite3")
+            direction = store.create_direction(
+                {"slug": "music", "title": "Музыка", "color": "#445566", "sort_order": 7}
+            )
+
+            with self.assertRaisesRegex(StoreError, "assigned direction"):
+                store.create_goal(
+                    "child-a",
+                    {
+                        "direction_id": direction["id"],
+                        "title": "Цель",
+                        "description": "Описание",
+                        "status": "active",
+                    },
+                )
+
+            with self.assertRaisesRegex(StoreError, "duration"):
+                store.create_visit(
+                    "child-a",
+                    {
+                        "direction_id": "direction-aba",
+                        "scheduled_start": "2026-06-10T11:00:00+03:00",
+                        "scheduled_end": "2026-06-10T10:00:00+03:00",
+                        "status": "scheduled",
+                    },
+                )
 
 
 if __name__ == "__main__":
