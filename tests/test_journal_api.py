@@ -17,6 +17,11 @@ class _BrokenStore:
         raise StoreError("broken seed")
 
 
+class _BrokenParentStore:
+    def load_parent_journal_data(self, parent_id, child_id=None):
+        raise StoreError("broken parent seed")
+
+
 class JournalApiTests(unittest.TestCase):
     def start_server(self, store):
         server = ThreadingHTTPServer(("127.0.0.1", 0), AppHandler)
@@ -69,6 +74,51 @@ class JournalApiTests(unittest.TestCase):
             self.assertEqual(payload["month"], "2026-06")
             self.assertEqual(payload["child"]["id"], "child-a")
             self.assertGreaterEqual(len(payload["directions"]), 4)
+
+    def test_parent_portal_lists_only_linked_children_and_returns_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DemoStore(Path(tmp) / "app.sqlite3")
+            base_url = self.start_server(store)
+
+            _, child = self.request_json(
+                f"{base_url}/api/admin/children",
+                "POST",
+                {"display_name": "Ребёнок Б", "age_label": "6 лет", "focus": "адаптация"},
+            )
+            _, parent = self.request_json(
+                f"{base_url}/api/admin/parents",
+                "POST",
+                {"display_name": "Родитель Б", "login": "parent-b", "access_code": "demo-b"},
+            )
+            self.request_json(
+                f"{base_url}/api/admin/parents/{parent['id']}/children",
+                "POST",
+                {"child_id": child["id"]},
+            )
+
+            children_status, children = self.read_json(f"{base_url}/api/parent/children?parent_id={parent['id']}")
+            journal_status, journal = self.read_json(
+                f"{base_url}/api/parent/journal?parent_id={parent['id']}&month=2026-06&child_id={child['id']}"
+            )
+            foreign_status, foreign = self.read_error(
+                f"{base_url}/api/parent/journal?parent_id={parent['id']}&month=2026-06&child_id=child-a"
+            )
+
+            self.assertEqual(children_status, 200)
+            self.assertEqual([item["id"] for item in children["children"]], [child["id"]])
+            self.assertEqual(journal_status, 200)
+            self.assertEqual(journal["child"]["id"], child["id"])
+            self.assertEqual(foreign_status, 403)
+            self.assertEqual(foreign["error"]["code"], "forbidden_child")
+
+    def test_parent_portal_rejects_missing_parent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_url = self.start_server(DemoStore(Path(tmp) / "app.sqlite3"))
+
+            status, payload = self.read_error(f"{base_url}/api/parent/children")
+
+            self.assertEqual(status, 400)
+            self.assertEqual(payload["error"]["code"], "missing_parent")
 
     def test_get_journal_rejects_invalid_month(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -165,6 +215,29 @@ class JournalApiTests(unittest.TestCase):
             self.assertEqual(goal["title"], "Петь короткую фразу")
             self.assertEqual(visit_status, 201)
             self.assertEqual(visit["direction_id"], direction["id"])
+
+    def test_admin_parent_endpoints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base_url = self.start_server(DemoStore(Path(tmp) / "app.sqlite3"))
+
+            status, parent = self.request_json(
+                f"{base_url}/api/admin/parents",
+                "POST",
+                {"display_name": "Родитель Б", "login": "parent-b", "access_code": "demo-b"},
+            )
+            assign_status, link = self.request_json(
+                f"{base_url}/api/admin/parents/{parent['id']}/children",
+                "POST",
+                {"child_id": "child-a"},
+            )
+            list_status, children = self.read_json(f"{base_url}/api/admin/parents/{parent['id']}/children")
+
+            self.assertEqual(status, 201)
+            self.assertEqual(parent["login"], "parent-b")
+            self.assertEqual(assign_status, 200)
+            self.assertEqual(link["child_id"], "child-a")
+            self.assertEqual(list_status, 200)
+            self.assertEqual(children["children"][0]["id"], "child-a")
 
     def test_admin_validation_errors_return_400(self):
         with tempfile.TemporaryDirectory() as tmp:

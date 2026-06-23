@@ -54,6 +54,9 @@ class AppHandler(BaseHTTPRequestHandler):
             if parsed_url.path == "/api/journal":
                 self._serve_journal(parsed_url.query)
                 return
+            if parsed_url.path.startswith("/api/parent/"):
+                self._serve_parent_get(parsed_url.path, parsed_url.query)
+                return
             if parsed_url.path.startswith("/api/admin/"):
                 self._serve_admin_get(parsed_url.path)
                 return
@@ -98,6 +101,38 @@ class AppHandler(BaseHTTPRequestHandler):
         )
         self._json_response(snapshot)
 
+    def _serve_parent_get(self, path: str, query: str) -> None:
+        try:
+            params = parse_qs(query)
+            parent_id = self._required_query_value(params, "parent_id")
+            parts = self._path_parts(path)
+            if parts == ["api", "parent", "children"]:
+                self._json_response({"children": STORE.list_parent_children(parent_id)})
+                return
+            if parts == ["api", "parent", "journal"]:
+                month = parse_month(self._required_query_value(params, "month"))
+                child_values = params.get("child_id", [])
+                child_id = child_values[0] if len(child_values) == 1 else None
+                data = STORE.load_parent_journal_data(parent_id, child_id)
+                snapshot = build_journal_snapshot(
+                    month=month,
+                    child=data["child"],
+                    directions=data["directions"],
+                    visits=data["visits"],
+                    goals=data["goals"],
+                    goal_updates=data["goal_updates"],
+                    now=datetime.now(SCHOOL_TIMEZONE).isoformat(),
+                )
+                self._json_response(snapshot)
+                return
+            self._json_error("Not found", HTTPStatus.NOT_FOUND)
+        except ValueError as exc:
+            self._json_error(str(exc), HTTPStatus.BAD_REQUEST, "missing_parent")
+        except StoreError as exc:
+            code = "forbidden_child" if "not linked" in str(exc) else "validation_error"
+            status = HTTPStatus.FORBIDDEN if code == "forbidden_child" else HTTPStatus.BAD_REQUEST
+            self._json_error(str(exc), status, code)
+
     def _serve_admin_get(self, path: str) -> None:
         try:
             parts = self._path_parts(path)
@@ -106,6 +141,12 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
             if parts == ["api", "admin", "directions"]:
                 self._json_response({"directions": STORE.list_directions()})
+                return
+            if parts == ["api", "admin", "parents"]:
+                self._json_response({"parents": STORE.list_parents()})
+                return
+            if len(parts) == 5 and parts[:3] == ["api", "admin", "parents"] and parts[4] == "children":
+                self._json_response({"children": STORE.list_parent_children(parts[3])})
                 return
             if len(parts) == 5 and parts[:3] == ["api", "admin", "children"]:
                 child_id = parts[3]
@@ -153,6 +194,31 @@ class AppHandler(BaseHTTPRequestHandler):
                 if parts[4] == "restore":
                     self._json_response(STORE.restore_direction(parts[3]))
                     return
+            if method == "POST" and parts == ["api", "admin", "parents"]:
+                self._json_response(STORE.create_parent(payload), HTTPStatus.CREATED)
+                return
+            if method == "PUT" and len(parts) == 4 and parts[:3] == ["api", "admin", "parents"]:
+                self._json_response(STORE.update_parent(parts[3], payload))
+                return
+            if method == "POST" and len(parts) == 5 and parts[:3] == ["api", "admin", "parents"]:
+                if parts[4] == "archive":
+                    self._json_response(STORE.archive_parent(parts[3]))
+                    return
+                if parts[4] == "restore":
+                    self._json_response(STORE.restore_parent(parts[3]))
+                    return
+                if parts[4] == "children":
+                    child_id = self._required_payload_id(payload, "child_id")
+                    self._json_response(STORE.assign_parent_child(parts[3], child_id))
+                    return
+            if (
+                    method == "DELETE"
+                    and len(parts) == 6
+                    and parts[:3] == ["api", "admin", "parents"]
+                    and parts[4] == "children"
+            ):
+                self._json_response(STORE.remove_parent_child(parts[3], parts[5]))
+                return
             if len(parts) >= 5 and parts[:3] == ["api", "admin", "children"]:
                 child_id = parts[3]
                 if method == "POST" and len(parts) == 5 and parts[4] == "directions":
@@ -204,6 +270,12 @@ class AppHandler(BaseHTTPRequestHandler):
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"Missing required field: {field}")
         return value.strip()
+
+    def _required_query_value(self, params: dict[str, list[str]], field: str) -> str:
+        values = params.get(field, [])
+        if len(values) != 1 or not values[0].strip():
+            raise ValueError(f"Missing required field: {field}")
+        return values[0].strip()
 
     def _serve_static(self, request_path: str) -> None:
         relative = "index.html" if request_path == "/" else request_path.replace("/static/", "", 1)

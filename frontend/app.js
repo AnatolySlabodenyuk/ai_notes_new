@@ -1,11 +1,28 @@
 const state = {
+    parentId: "parent-a",
     month: "2026-06",
     childId: "",
     snapshot: null,
-    admin: {children: [], directions: [], childDirections: [], goals: [], visits: []},
+    parentChildren: [],
+    admin: {children: [], directions: [], parents: [], childDirections: [], goals: [], visits: []},
 };
+const LEGACY_JOURNAL_ENDPOINT = "/api/journal?month=";
 const $ = (id) => document.getElementById(id);
-const ROUTES = {overview: "#/overview", calendar: "#/calendar", direction: "#/direction/", admin: "#/admin"};
+const ROUTES = {
+    overview: "#/overview",
+    calendar: "#/calendar",
+    direction: "#/direction/",
+    admin: "#/admin",
+    parentOverview: "#/parent/overview",
+    parentCalendar: "#/parent/calendar",
+    parentDirection: "#/parent/direction/",
+    adminDay: "#/admin/day",
+    adminChildren: "#/admin/children",
+    adminSchedule: "#/admin/schedule",
+    adminDirections: "#/admin/directions",
+    adminParents: "#/admin/parents",
+    adminSettings: "#/admin/settings",
+};
 
 const STATUS_LABELS = {
     scheduled: "Запланировано",
@@ -116,22 +133,37 @@ function toLocalInput(value) {
 }
 
 function currentRoute() {
-    const hash = window.location.hash || ROUTES.overview;
+    const hash = window.location.hash || `${ROUTES.parentOverview}?month=${state.month}`;
     const [path, query = ""] = hash.slice(1).split("?");
     return {path, params: new URLSearchParams(query)};
+}
+
+function normalizeRoutePath(path) {
+    if (path === "/overview") return "/parent/overview";
+    if (path === "/calendar") return "/parent/calendar";
+    if (path.startsWith("/direction/")) return `/parent${path}`;
+    if (path === "/admin") return "/admin/day";
+    return path;
 }
 
 function navigate(hash) {
     window.location.hash = hash;
 }
 
+async function loadParentChildren() {
+    const payload = await api(`/api/parent/children?parent_id=${encodeURIComponent(state.parentId)}`);
+    state.parentChildren = payload.children;
+    if (!state.childId && state.parentChildren.length) state.childId = state.parentChildren[0].id;
+    renderChildSelectors();
+}
+
 async function loadJournal() {
     $("errorBox").hidden = true;
     try {
         const childQuery = state.childId ? `&child_id=${encodeURIComponent(state.childId)}` : "";
-        state.snapshot = await api(`/api/journal?month=${encodeURIComponent(state.month)}${childQuery}`);
+        state.snapshot = await api(`/api/parent/journal?parent_id=${encodeURIComponent(state.parentId)}&month=${encodeURIComponent(state.month)}${childQuery}`);
         state.childId = state.snapshot.child.id;
-        $("journalChildSelect").value = state.childId;
+        renderChildSelectors();
         render();
     } catch (error) {
         $("errorBox").textContent = error.message;
@@ -140,12 +172,14 @@ async function loadJournal() {
 }
 
 async function loadAdmin() {
-    const [childrenPayload, directionsPayload] = await Promise.all([
+    const [childrenPayload, directionsPayload, parentsPayload] = await Promise.all([
         api("/api/admin/children"),
         api("/api/admin/directions"),
+        api("/api/admin/parents"),
     ]);
     state.admin.children = childrenPayload.children;
     state.admin.directions = directionsPayload.directions;
+    state.admin.parents = parentsPayload.parents;
     const activeChildren = state.admin.children.filter((child) => !child.archived_at);
     if (!state.childId && activeChildren.length) state.childId = activeChildren[0].id;
     renderChildSelectors();
@@ -172,17 +206,20 @@ async function loadAdminChildData() {
 }
 
 function renderChildSelectors() {
+    const parentOptions = state.parentChildren.map((child) => option(child.id, child.display_name));
+    $("parentChildSelect").replaceChildren(...parentOptions);
+    $("parentChildSelect").value = state.childId;
+
     const activeChildren = state.admin.children.filter((child) => !child.archived_at);
-    const options = activeChildren.map((child) => {
-        const option = document.createElement("option");
-        option.value = child.id;
-        option.textContent = child.display_name;
-        return option;
-    });
-    $("journalChildSelect").replaceChildren(...options.map((option) => option.cloneNode(true)));
-    $("adminChildSelect").replaceChildren(...options);
-    $("journalChildSelect").value = state.childId;
+    $("adminChildSelect").replaceChildren(...activeChildren.map((child) => option(child.id, child.display_name)));
     $("adminChildSelect").value = state.childId;
+}
+
+function option(value, text) {
+    const element = document.createElement("option");
+    element.value = value;
+    element.textContent = text;
+    return element;
 }
 
 function directionBySlug(slug) {
@@ -191,6 +228,10 @@ function directionBySlug(slug) {
 
 function directionById(directionId) {
     return state.admin.directions.find((direction) => direction.id === directionId);
+}
+
+function childById(childId) {
+    return state.admin.children.find((child) => child.id === childId);
 }
 
 function activeAssignedDirections() {
@@ -212,12 +253,7 @@ function visitCard(visit, direction, modifier = "") {
     const title = node("strong", "", direction?.title || "Занятие");
     if (direction?.color) title.style.color = direction.color;
     top.append(title, badge(visit.status));
-    const time = node(
-        "p",
-        "muted",
-        `${formatDate(visit.scheduled_start)} · ${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)}`
-    );
-    card.append(top, time);
+    card.append(top, node("p", "muted", `${formatDate(visit.scheduled_start)} · ${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)}`));
     if (visit.actual_minutes) card.append(node("p", "", `Фактически: ${formatMinutes(visit.actual_minutes)}`));
     if (visit.reason_code) card.append(node("p", "reason", REASON_LABELS[visit.reason_code] || visit.reason_code));
     return card;
@@ -241,7 +277,7 @@ function renderOverview() {
             node("strong", "direction-hours", `${formatMinutes(direction.actual_minutes)} из ${formatMinutes(direction.planned_minutes)}`),
             node("span", "muted", `${formatGoalCount(direction.goals.length)} · открыть ->`)
         );
-        card.addEventListener("click", () => navigate(`#/direction/${direction.slug}?month=${state.month}&from=overview`));
+        card.addEventListener("click", () => navigate(`#/parent/direction/${direction.slug}?month=${state.month}&from=overview`));
         return card;
     });
     $("directionGrid").replaceChildren(...cards);
@@ -260,22 +296,15 @@ function renderCalendar() {
     const days = state.snapshot.calendar.map((day) => {
         const block = node("section", "calendar-day");
         const heading = node("div", "calendar-day-heading");
-        heading.append(
-            node("h3", "", formatDate(`${day.date}T12:00:00+03:00`)),
-            node("span", "muted", `${day.visits.length} ${day.visits.length === 1 ? "занятие" : "занятия"}`),
-        );
+        heading.append(node("h3", "", formatDate(`${day.date}T12:00:00+03:00`)), node("span", "muted", `${day.visits.length} ${day.visits.length === 1 ? "занятие" : "занятия"}`));
         block.append(heading);
         day.visits.forEach((visit) => {
             const direction = state.snapshot.directions.find((item) => item.id === visit.direction_id);
             const item = node("button", "calendar-visit");
             item.type = "button";
             item.style.borderLeftColor = direction.color;
-            item.append(
-                node("span", "calendar-time", `${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)}`),
-                node("strong", "", direction.title),
-                badge(visit.status)
-            );
-            item.addEventListener("click", () => navigate(`#/direction/${direction.slug}?month=${state.month}&date=${day.date}&from=calendar`));
+            item.append(node("span", "calendar-time", `${formatTime(visit.scheduled_start)}–${formatTime(visit.scheduled_end)}`), node("strong", "", direction.title), badge(visit.status));
+            item.addEventListener("click", () => navigate(`#/parent/direction/${direction.slug}?month=${state.month}&date=${day.date}&from=calendar`));
             block.append(item);
         });
         return block;
@@ -310,10 +339,7 @@ function goalCard(goal) {
     const history = node("div", "goal-history");
     goal.updates.slice().reverse().forEach((update) => {
         const item = node("article", "goal-update");
-        item.append(
-            node("time", "muted", formatDate(update.updated_at)),
-            node("p", "", update.comment),
-        );
+        item.append(node("time", "muted", formatDate(update.updated_at)), node("p", "", update.comment));
         history.append(item);
     });
     card.append(history);
@@ -321,10 +347,10 @@ function goalCard(goal) {
 }
 
 function renderDirection(route) {
-    const slug = route.path.split("/")[2];
+    const slug = route.path.split("/")[3];
     const direction = directionBySlug(slug);
     if (!direction) {
-        navigate(ROUTES.overview);
+        navigate(`${ROUTES.parentOverview}?month=${state.month}`);
         return;
     }
     $("directionTitle").textContent = direction.title;
@@ -334,23 +360,14 @@ function renderDirection(route) {
     const selectedDate = route.params.get("date");
     const directionSource = route.params.get("from") === "calendar" ? "calendar" : "overview";
     $("backButton").textContent = directionSource === "calendar" ? "← Вернуться к календарю" : "← Вернуться к обзору";
-    $("backButton").onclick = () => navigate(`#/${directionSource}?month=${state.month}`);
+    $("backButton").onclick = () => navigate(`#/parent/${directionSource}?month=${state.month}`);
     const visits = selectedDate ? direction.visits.filter((visit) => visit.date === selectedDate) : direction.visits;
-    $("directionVisits").replaceChildren(
-        ...(visits.length ? visits.map((visit) => visitCard(visit, direction)) : [empty("Занятий в этом месяце нет.")])
-    );
-    $("goalList").replaceChildren(
-        ...(direction.goals.length ? direction.goals.map(goalCard) : [empty("Цели пока не добавлены.")])
-    );
+    $("directionVisits").replaceChildren(...(visits.length ? visits.map((visit) => visitCard(visit, direction)) : [empty("Занятий в этом месяце нет.")]));
+    $("goalList").replaceChildren(...(direction.goals.length ? direction.goals.map(goalCard) : [empty("Цели пока не добавлены.")]));
 }
 
 function adminSelectOptions(select, directions) {
-    select.replaceChildren(...directions.map((direction) => {
-        const option = document.createElement("option");
-        option.value = direction.id;
-        option.textContent = direction.title;
-        return option;
-    }));
+    select.replaceChildren(...directions.map((direction) => option(direction.id, direction.title)));
 }
 
 function adminRow(title, archivedAt) {
@@ -366,11 +383,17 @@ function renderChildrenAdmin() {
         const age = input("age_label", child.age_label);
         const focus = input("focus", child.focus);
         row.append(name, age, focus);
+        row.append(button("Открыть", "secondary-button", async () => {
+            state.childId = child.id;
+            renderChildSelectors();
+            await loadAdminChildData();
+            navigate(ROUTES.adminChildren);
+        }));
         row.append(button("Сохранить", "", async () => {
             await mutate(`/api/admin/children/${child.id}`, "PUT", {
                 display_name: name.value,
                 age_label: age.value,
-                focus: focus.value,
+                focus: focus.value
             });
             await reloadAll();
         }));
@@ -381,6 +404,8 @@ function renderChildrenAdmin() {
         return row;
     });
     $("childrenAdminList").replaceChildren(...(rows.length ? rows : [empty("Детей пока нет.")]));
+    const child = childById(state.childId);
+    $("adminChildTitle").textContent = child ? `${child.display_name} · ${child.age_label}` : "Ребёнок";
 }
 
 function renderDirectionsAdmin() {
@@ -396,7 +421,7 @@ function renderDirectionsAdmin() {
                 title: title.value,
                 slug: slug.value,
                 color: color.value,
-                sort_order: sort.value,
+                sort_order: sort.value
             });
             await reloadAll();
         }));
@@ -434,12 +459,7 @@ function renderGoalsAdmin() {
         const title = input("title", goal.title);
         const description = input("description", goal.description);
         const status = document.createElement("select");
-        ["active", "progress", "achieved", "paused"].forEach((value) => {
-            const option = document.createElement("option");
-            option.value = value;
-            option.textContent = STATUS_LABELS[value];
-            status.append(option);
-        });
+        ["active", "progress", "achieved", "paused"].forEach((value) => status.append(option(value, STATUS_LABELS[value])));
         status.value = goal.status;
         row.append(node("span", "muted", directionById(goal.direction_id)?.title || goal.direction_id), title, description, status);
         row.append(button("Сохранить", "", async () => {
@@ -469,12 +489,7 @@ function renderVisitsAdmin() {
         const start = input("scheduled_start", toLocalInput(visit.scheduled_start), "datetime-local");
         const end = input("scheduled_end", toLocalInput(visit.scheduled_end), "datetime-local");
         const status = document.createElement("select");
-        ["scheduled", "completed", "partial", "cancelled", "absent", "rescheduled"].forEach((value) => {
-            const option = document.createElement("option");
-            option.value = value;
-            option.textContent = STATUS_LABELS[value];
-            status.append(option);
-        });
+        ["scheduled", "completed", "partial", "cancelled", "absent", "rescheduled"].forEach((value) => status.append(option(value, STATUS_LABELS[value])));
         status.value = visit.status;
         row.append(start, end, status);
         row.append(button("Сохранить", "", async () => {
@@ -498,47 +513,131 @@ function renderVisitsAdmin() {
     $("visitsAdminList").replaceChildren(...(rows.length ? rows : [empty("Занятия пока не добавлены.")]));
 }
 
+function renderAdminDay() {
+    const activeVisits = state.admin.visits.filter((visit) => !visit.archived_at);
+    const problemVisits = activeVisits.filter((visit) => ["partial", "cancelled", "absent", "rescheduled"].includes(visit.status));
+    $("adminDaySummary").replaceChildren(
+        summaryTile("Занятий", String(activeVisits.length)),
+        summaryTile("Исключений", String(problemVisits.length)),
+        summaryTile("Целей", String(state.admin.goals.filter((goal) => !goal.archived_at).length))
+    );
+    $("adminDayList").replaceChildren(...(activeVisits.slice(0, 6).map((visit) => visitCard(visit, directionById(visit.direction_id), "admin-visit")) || [empty("На сегодня задач нет.")]));
+}
+
+function summaryTile(label, value) {
+    const tile = node("article", "summary-tile");
+    tile.append(node("span", "muted", label), node("strong", "", value));
+    return tile;
+}
+
+function renderParentsAdmin() {
+    $("assignParentChildForm").elements.parent_id.replaceChildren(...state.admin.parents.filter((parent) => !parent.archived_at).map((parent) => option(parent.id, parent.display_name)));
+    $("assignParentChildForm").elements.child_id.replaceChildren(...state.admin.children.filter((child) => !child.archived_at).map((child) => option(child.id, child.display_name)));
+    const rows = state.admin.parents.map((parent) => {
+        const row = adminRow(parent.display_name, parent.archived_at);
+        const name = input("display_name", parent.display_name);
+        const login = input("login", parent.login);
+        const code = input("access_code", parent.access_code);
+        row.append(name, login, code);
+        row.append(button("Сохранить", "", async () => {
+            await mutate(`/api/admin/parents/${parent.id}`, "PUT", {
+                display_name: name.value,
+                login: login.value,
+                access_code: code.value
+            });
+            await reloadAll();
+        }));
+        row.append(button(parent.archived_at ? "Вернуть" : "Архивировать", "", async () => {
+            await mutate(`/api/admin/parents/${parent.id}/${parent.archived_at ? "restore" : "archive"}`, "POST", {});
+            await reloadAll();
+        }));
+        return row;
+    });
+    $("parentsAdminList").replaceChildren(...(rows.length ? rows : [empty("Родителей пока нет.")]));
+}
+
+function renderSettings() {
+    const items = [
+        ["Статусы занятий", "Запланировано, проведено, частично, отменено, отсутствовал, перенесено"],
+        ["Статусы целей", "В работе, есть прогресс, достигнута, приостановлена"],
+        ["Доступ родителей", "Родитель видит только связанных активных детей"],
+    ].map(([title, text]) => {
+        const card = node("article", "settings-card");
+        card.append(node("strong", "", title), node("p", "muted", text));
+        return card;
+    });
+    $("settingsList").replaceChildren(...items);
+}
+
 function renderAdmin() {
     renderChildrenAdmin();
     renderDirectionsAdmin();
     renderChildDirectionsAdmin();
     renderGoalsAdmin();
     renderVisitsAdmin();
+    renderAdminDay();
+    renderParentsAdmin();
+    renderSettings();
+}
+
+function renderAdminRoute(route) {
+    const path = route.path === "/admin" ? "/admin/day" : route.path;
+    const views = {
+        "/admin/day": "adminDayView",
+        "/admin/children": "adminChildrenView",
+        "/admin/schedule": "adminScheduleView",
+        "/admin/directions": "adminDirectionsView",
+        "/admin/parents": "adminParentsView",
+        "/admin/settings": "adminSettingsView",
+    };
+    Object.values(views).forEach((id) => $(id).hidden = id !== (views[path] || "adminDayView"));
+    const tabs = {
+        adminDayTab: "/admin/day",
+        adminChildrenTab: "/admin/children",
+        adminScheduleTab: "/admin/schedule",
+        adminDirectionsTab: "/admin/directions",
+        adminParentsTab: "/admin/parents",
+        adminSettingsTab: "/admin/settings",
+    };
+    Object.entries(tabs).forEach(([id, tabPath]) => $(id).classList.toggle("active", path === tabPath));
 }
 
 function render() {
     const route = currentRoute();
-    const isAdmin = route.path === "/admin";
-    const isCalendar = route.path === "/calendar";
-    const isDirection = route.path.startsWith("/direction/");
+    route.path = normalizeRoutePath(route.path);
+    const isAdmin = route.path.startsWith("/admin");
+    const isCalendar = route.path === "/parent/calendar";
+    const isDirection = route.path.startsWith("/parent/direction/");
     const directionSource = isDirection && route.params.get("from") === "calendar" ? "calendar" : "overview";
     const isCalendarContext = isCalendar || (isDirection && directionSource === "calendar");
 
-    $("overviewTab").href = `#/overview?month=${state.month}`;
-    $("calendarTab").href = `#/calendar?month=${state.month}`;
-    $("adminTab").href = "#/admin";
+    $("parentShell").hidden = isAdmin;
+    $("adminShell").hidden = !isAdmin;
+    $("parentSurfaceLink").classList.toggle("active", !isAdmin);
+    $("adminSurfaceLink").classList.toggle("active", isAdmin);
+
+    $("overviewTab").href = `#/parent/overview?month=${state.month}`;
+    $("calendarTab").href = `#/parent/calendar?month=${state.month}`;
     $("profileCard").hidden = isAdmin || !state.snapshot;
     $("overviewView").hidden = isAdmin || isCalendar || isDirection || !state.snapshot;
     $("calendarView").hidden = !isCalendar || isAdmin || !state.snapshot;
     $("directionView").hidden = !isDirection || isAdmin || !state.snapshot;
-    $("adminView").hidden = !isAdmin;
-    $("profileCard").style.display = $("profileCard").hidden ? "none" : "";
-    $("overviewView").style.display = $("overviewView").hidden ? "none" : "";
-    $("calendarView").style.display = $("calendarView").hidden ? "none" : "";
-    $("directionView").style.display = $("directionView").hidden ? "none" : "";
-    $("adminView").style.display = $("adminView").hidden ? "none" : "";
     $("overviewTab").classList.toggle("active", !isAdmin && !isCalendarContext);
     $("calendarTab").classList.toggle("active", !isAdmin && isCalendarContext);
-    $("adminTab").classList.toggle("active", isAdmin);
 
-    if (state.snapshot && !isAdmin) renderProfile();
-    if (isAdmin) renderAdmin();
-    else if (isCalendar && state.snapshot) renderCalendar();
-    else if (isDirection && state.snapshot) renderDirection(route);
-    else if (state.snapshot) renderOverview();
+    if (isAdmin) {
+        renderAdmin();
+        renderAdminRoute(route);
+    } else if (state.snapshot) {
+        renderProfile();
+        if (isCalendar) renderCalendar();
+        else if (isDirection) renderDirection(route);
+        else renderOverview();
+    }
 }
 
 async function reloadAll() {
+    await loadParentChildren();
     await loadAdmin();
     await loadJournal();
 }
@@ -551,7 +650,7 @@ $("monthSelect").addEventListener("change", (event) => {
     navigate(`#${route.path}?${route.params}`);
 });
 
-$("journalChildSelect").addEventListener("change", async (event) => {
+$("parentChildSelect").addEventListener("change", async (event) => {
     state.childId = event.target.value;
     $("adminChildSelect").value = state.childId;
     await loadAdminChildData();
@@ -560,7 +659,7 @@ $("journalChildSelect").addEventListener("change", async (event) => {
 
 $("adminChildSelect").addEventListener("change", async (event) => {
     state.childId = event.target.value;
-    $("journalChildSelect").value = state.childId;
+    $("parentChildSelect").value = state.childId;
     await loadAdminChildData();
     await loadJournal();
 });
@@ -604,8 +703,23 @@ $("visitForm").addEventListener("submit", async (event) => {
     await reloadAll();
 });
 
+$("parentForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await mutate("/api/admin/parents", "POST", formData(event.currentTarget));
+    event.currentTarget.reset();
+    await reloadAll();
+});
+
+$("assignParentChildForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    await mutate(`/api/admin/parents/${data.parent_id}/children`, "POST", {child_id: data.child_id});
+    await reloadAll();
+});
+
 window.addEventListener("hashchange", () => {
-    const routeMonth = currentRoute().params.get("month");
+    const route = currentRoute();
+    const routeMonth = route.params.get("month");
     if (routeMonth && routeMonth !== state.month) {
         state.month = routeMonth;
         $("monthSelect").value = state.month;
@@ -615,14 +729,16 @@ window.addEventListener("hashchange", () => {
     }
 });
 
-const initialMonth = currentRoute().params.get("month");
+const initialRoute = currentRoute();
+const initialMonth = initialRoute.params.get("month");
 if (initialMonth) {
     state.month = initialMonth;
     $("monthSelect").value = initialMonth;
 }
-if (!window.location.hash) window.location.hash = `${ROUTES.overview}?month=${state.month}`;
+if (!window.location.hash) window.location.hash = `${ROUTES.parentOverview}?month=${state.month}`;
 
-loadAdmin()
+loadParentChildren()
+    .then(loadAdmin)
     .then(loadJournal)
     .catch((error) => {
         $("errorBox").textContent = error.message;

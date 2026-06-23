@@ -14,7 +14,7 @@ class StoreError(RuntimeError):
     """Raised when the local demo SQLite store cannot be read or written."""
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 DEFAULT_SEED_PATH = Path(__file__).with_name("demo_seed.json")
 VISIT_STATUSES = {"scheduled", "completed", "partial", "cancelled", "absent", "rescheduled"}
 GOAL_STATUSES = {"active", "progress", "achieved", "paused"}
@@ -155,7 +155,9 @@ class DemoStore:
                 connection.execute(
                     """
                     UPDATE children
-                    SET display_name = ?, age_label = ?, focus = ?
+                    SET display_name = ?,
+                        age_label    = ?,
+                        focus        = ?
                     WHERE id = ?
                     """,
                     (values["display_name"], values["age_label"], values["focus"], child_id),
@@ -215,7 +217,10 @@ class DemoStore:
                     connection.execute(
                         """
                         UPDATE directions
-                        SET slug = ?, title = ?, color = ?, sort_order = ?
+                        SET slug       = ?,
+                            title      = ?,
+                            color      = ?,
+                            sort_order = ?
                         WHERE id = ?
                         """,
                         (slug, title, color, sort_order, direction_id),
@@ -239,8 +244,8 @@ class DemoStore:
                 connection.execute(
                     """
                     INSERT INTO child_directions (child_id, direction_id, archived_at)
-                    VALUES (?, ?, NULL)
-                    ON CONFLICT(child_id, direction_id) DO UPDATE SET archived_at = NULL
+                    VALUES (?, ?, NULL) ON CONFLICT(child_id, direction_id) DO
+                    UPDATE SET archived_at = NULL
                     """,
                     (child_id, direction_id),
                 )
@@ -256,7 +261,8 @@ class DemoStore:
                     """
                     UPDATE child_directions
                     SET archived_at = ?
-                    WHERE child_id = ? AND direction_id = ?
+                    WHERE child_id = ?
+                      AND direction_id = ?
                     """,
                     (self._now_iso(), child_id, direction_id),
                 )
@@ -285,8 +291,16 @@ class DemoStore:
                 self._get_child(connection, child_id)
                 rows = connection.execute(
                     """
-                    SELECT id, child_id, direction_id, title, description, status,
-                           metric_label, metric_target, sort_order, archived_at
+                    SELECT id,
+                           child_id,
+                           direction_id,
+                           title,
+                           description,
+                           status,
+                           metric_label,
+                           metric_target,
+                           sort_order,
+                           archived_at
                     FROM goals
                     WHERE child_id = ?
                     ORDER BY archived_at IS NOT NULL, direction_id, sort_order, id
@@ -333,9 +347,15 @@ class DemoStore:
                 connection.execute(
                     """
                     UPDATE goals
-                    SET direction_id = ?, title = ?, description = ?, status = ?,
-                        metric_label = ?, metric_target = ?, sort_order = ?
-                    WHERE id = ? AND child_id = ?
+                    SET direction_id  = ?,
+                        title         = ?,
+                        description   = ?,
+                        status        = ?,
+                        metric_label  = ?,
+                        metric_target = ?,
+                        sort_order    = ?
+                    WHERE id = ?
+                      AND child_id = ?
                     """,
                     (
                         values["direction_id"],
@@ -361,9 +381,17 @@ class DemoStore:
                 self._get_child(connection, child_id)
                 rows = connection.execute(
                     """
-                    SELECT id, child_id, direction_id, scheduled_start, scheduled_end,
-                           actual_start, actual_end, status, reason_code,
-                           rescheduled_to_visit_id, archived_at
+                    SELECT id,
+                           child_id,
+                           direction_id,
+                           scheduled_start,
+                           scheduled_end,
+                           actual_start,
+                           actual_end,
+                           status,
+                           reason_code,
+                           rescheduled_to_visit_id,
+                           archived_at
                     FROM visits
                     WHERE child_id = ?
                     ORDER BY archived_at IS NOT NULL, scheduled_start, id
@@ -414,10 +442,16 @@ class DemoStore:
                 connection.execute(
                     """
                     UPDATE visits
-                    SET direction_id = ?, scheduled_start = ?, scheduled_end = ?,
-                        actual_start = ?, actual_end = ?, status = ?, reason_code = ?,
+                    SET direction_id            = ?,
+                        scheduled_start         = ?,
+                        scheduled_end           = ?,
+                        actual_start            = ?,
+                        actual_end              = ?,
+                        status                  = ?,
+                        reason_code             = ?,
                         rescheduled_to_visit_id = ?
-                    WHERE id = ? AND child_id = ?
+                    WHERE id = ?
+                      AND child_id = ?
                     """,
                     (
                         values["direction_id"],
@@ -436,6 +470,129 @@ class DemoStore:
 
     def archive_visit(self, child_id: str, visit_id: str) -> dict[str, Any]:
         return self._archive_child_item("visits", child_id, visit_id)
+
+    def list_parents(self) -> list[dict[str, Any]]:
+        with self._lock:
+            self._ensure_database()
+            with self._connection() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT id, display_name, login, access_code, archived_at
+                    FROM parents
+                    ORDER BY archived_at IS NOT NULL, display_name, id
+                    """
+                ).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_parent(self, payload: dict[str, Any]) -> dict[str, Any]:
+        parent_id = self._new_id("parent")
+        display_name = self._required_text(payload, "display_name")
+        login = self._required_slug(payload, "login")
+        access_code = self._required_text(payload, "access_code")
+        with self._lock:
+            self._ensure_database()
+            with self._connection() as connection, connection:
+                try:
+                    connection.execute(
+                        """
+                        INSERT INTO parents (id, display_name, login, access_code, archived_at)
+                        VALUES (?, ?, ?, ?, NULL)
+                        """,
+                        (parent_id, display_name, login, access_code),
+                    )
+                except sqlite3.IntegrityError as exc:
+                    raise StoreError("Parent login already exists.") from exc
+                return self._get_parent(connection, parent_id)
+
+    def update_parent(self, parent_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            self._ensure_database()
+            with self._connection() as connection, connection:
+                current = self._get_parent(connection, parent_id)
+                values = {
+                    "display_name": self._optional_text(payload, "display_name", current["display_name"]),
+                    "login": self._optional_slug(payload, "login", current["login"]),
+                    "access_code": self._optional_text(payload, "access_code", current["access_code"]),
+                }
+                try:
+                    connection.execute(
+                        """
+                        UPDATE parents
+                        SET display_name = ?,
+                            login        = ?,
+                            access_code  = ?
+                        WHERE id = ?
+                        """,
+                        (values["display_name"], values["login"], values["access_code"], parent_id),
+                    )
+                except sqlite3.IntegrityError as exc:
+                    raise StoreError("Parent login already exists.") from exc
+                return self._get_parent(connection, parent_id)
+
+    def archive_parent(self, parent_id: str) -> dict[str, Any]:
+        return self._set_archived("parents", parent_id, self._now_iso())
+
+    def restore_parent(self, parent_id: str) -> dict[str, Any]:
+        return self._set_archived("parents", parent_id, None)
+
+    def assign_parent_child(self, parent_id: str, child_id: str) -> dict[str, Any]:
+        with self._lock:
+            self._ensure_database()
+            with self._connection() as connection, connection:
+                self._get_parent(connection, parent_id, active=True)
+                self._get_child(connection, child_id, active=True)
+                connection.execute(
+                    """
+                    INSERT INTO parent_children (parent_id, child_id, archived_at)
+                    VALUES (?, ?, NULL) ON CONFLICT(parent_id, child_id) DO
+                    UPDATE SET archived_at = NULL
+                    """,
+                    (parent_id, child_id),
+                )
+                return self._get_parent_child(connection, parent_id, child_id)
+
+    def remove_parent_child(self, parent_id: str, child_id: str) -> dict[str, Any]:
+        with self._lock:
+            self._ensure_database()
+            with self._connection() as connection, connection:
+                self._get_parent(connection, parent_id)
+                self._get_child(connection, child_id)
+                connection.execute(
+                    """
+                    UPDATE parent_children
+                    SET archived_at = ?
+                    WHERE parent_id = ?
+                      AND child_id = ?
+                    """,
+                    (self._now_iso(), parent_id, child_id),
+                )
+                return self._get_parent_child(connection, parent_id, child_id)
+
+    def list_parent_children(self, parent_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            self._ensure_database()
+            with self._connection() as connection:
+                self._get_parent(connection, parent_id, active=True)
+                rows = connection.execute(
+                    """
+                    SELECT c.id, c.display_name, c.age_label, c.focus, c.archived_at
+                    FROM children c
+                             JOIN parent_children pc ON pc.child_id = c.id
+                    WHERE pc.parent_id = ?
+                      AND pc.archived_at IS NULL
+                      AND c.archived_at IS NULL
+                    ORDER BY c.display_name, c.id
+                    """,
+                    (parent_id,),
+                ).fetchall()
+            return [dict(row) for row in rows]
+
+    def load_parent_journal_data(self, parent_id: str, child_id: str | None = None) -> dict[str, Any]:
+        with self._lock:
+            self._ensure_database()
+            with self._connection() as connection:
+                child = self._select_parent_child(connection, parent_id, child_id)
+        return self.load_journal_data(child["id"])
 
     def reset(self) -> None:
         with self._lock:
@@ -463,13 +620,48 @@ class DemoStore:
             SELECT id, display_name, age_label, focus, archived_at
             FROM children
             WHERE archived_at IS NULL
-            ORDER BY id
-            LIMIT 1
+            ORDER BY id LIMIT 1
             """
         ).fetchone()
         if row is None:
             raise StoreError("No active child is available.")
         return row
+
+    def _select_parent_child(
+            self, connection: sqlite3.Connection, parent_id: str, child_id: str | None
+    ) -> dict[str, Any]:
+        self._get_parent(connection, parent_id, active=True)
+        if child_id is None:
+            row = connection.execute(
+                """
+                SELECT c.id, c.display_name, c.age_label, c.focus, c.archived_at
+                FROM children c
+                         JOIN parent_children pc ON pc.child_id = c.id
+                WHERE pc.parent_id = ?
+                  AND pc.archived_at IS NULL
+                  AND c.archived_at IS NULL
+                ORDER BY c.display_name, c.id LIMIT 1
+                """,
+                (parent_id,),
+            ).fetchone()
+            if row is None:
+                raise StoreError("Parent has no linked active child.")
+            return dict(row)
+        row = connection.execute(
+            """
+            SELECT c.id, c.display_name, c.age_label, c.focus, c.archived_at
+            FROM children c
+                     JOIN parent_children pc ON pc.child_id = c.id
+            WHERE pc.parent_id = ?
+              AND pc.child_id = ?
+              AND pc.archived_at IS NULL
+              AND c.archived_at IS NULL
+            """,
+            (parent_id, child_id),
+        ).fetchone()
+        if row is None:
+            raise StoreError("Parent is not linked to this child.")
+        return dict(row)
 
     def _ensure_database(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -501,6 +693,8 @@ class DemoStore:
                         DROP TABLE IF EXISTS goals;
                         DROP TABLE IF EXISTS visits;
                         DROP TABLE IF EXISTS child_directions;
+                        DROP TABLE IF EXISTS parent_children;
+                        DROP TABLE IF EXISTS parents;
                         DROP TABLE IF EXISTS directions;
                         DROP TABLE IF EXISTS sessions;
                         DROP TABLE IF EXISTS children;
@@ -535,6 +729,23 @@ class DemoStore:
                             PRIMARY KEY (child_id, direction_id),
                             FOREIGN KEY (child_id) REFERENCES children (id) ON DELETE CASCADE,
                             FOREIGN KEY (direction_id) REFERENCES directions (id) ON DELETE CASCADE
+                        );
+                        CREATE TABLE parents
+                        (
+                            id           TEXT PRIMARY KEY,
+                            display_name TEXT NOT NULL,
+                            login        TEXT NOT NULL UNIQUE,
+                            access_code  TEXT NOT NULL,
+                            archived_at  TEXT
+                        );
+                        CREATE TABLE parent_children
+                        (
+                            parent_id   TEXT NOT NULL,
+                            child_id    TEXT NOT NULL,
+                            archived_at TEXT,
+                            PRIMARY KEY (parent_id, child_id),
+                            FOREIGN KEY (parent_id) REFERENCES parents (id) ON DELETE CASCADE,
+                            FOREIGN KEY (child_id) REFERENCES children (id) ON DELETE CASCADE
                         );
                         CREATE TABLE visits
                         (
@@ -579,6 +790,7 @@ class DemoStore:
                             FOREIGN KEY (goal_id) REFERENCES goals (id) ON DELETE CASCADE
                         );
                         CREATE INDEX idx_child_directions_child ON child_directions (child_id, archived_at);
+                        CREATE INDEX idx_parent_children_parent ON parent_children (parent_id, archived_at);
                         CREATE INDEX idx_visits_child_scheduled ON visits (child_id, scheduled_start);
                         CREATE INDEX idx_goals_child_direction ON goals (child_id, direction_id);
                         CREATE INDEX idx_goal_updates_goal_updated ON goal_updates (goal_id, updated_at);
@@ -613,6 +825,20 @@ class DemoStore:
         connection.executemany(
             "INSERT INTO child_directions (child_id, direction_id, archived_at) VALUES (?, ?, NULL)",
             [(item["child_id"], item["direction_id"]) for item in seed["child_directions"]],
+        )
+        connection.executemany(
+            """
+            INSERT INTO parents (id, display_name, login, access_code, archived_at)
+            VALUES (?, ?, ?, ?, NULL)
+            """,
+            [
+                (item["id"], item["display_name"], item["login"], item["access_code"])
+                for item in seed["parents"]
+            ],
+        )
+        connection.executemany(
+            "INSERT INTO parent_children (parent_id, child_id, archived_at) VALUES (?, ?, NULL)",
+            [(item["parent_id"], item["child_id"]) for item in seed["parent_children"]],
         )
         connection.executemany(
             """
@@ -693,17 +919,32 @@ class DemoStore:
         return seed
 
     def _validate_seed(self, seed: dict[str, Any]) -> None:
-        required_lists = ("children", "directions", "child_directions", "visits", "goals", "goal_updates")
+        required_lists = (
+            "children",
+            "directions",
+            "child_directions",
+            "parents",
+            "parent_children",
+            "visits",
+            "goals",
+            "goal_updates",
+        )
         if any(not isinstance(seed.get(name), list) for name in required_lists):
             raise StoreError(f"Demo seed has invalid shape: {self.seed_path}")
         child_ids = {item.get("id") for item in seed["children"]}
         direction_ids = {item.get("id") for item in seed["directions"]}
+        parent_ids = {item.get("id") for item in seed["parents"]}
         goal_ids = {item.get("id") for item in seed["goals"]}
         visit_ids = {item.get("id") for item in seed["visits"]}
-        if not child_ids or None in child_ids or not direction_ids or None in direction_ids:
-            raise StoreError("Demo seed must define children and directions.")
+        if not child_ids or None in child_ids or not direction_ids or None in direction_ids or not parent_ids or None in parent_ids:
+            raise StoreError("Demo seed must define children, directions, and parents.")
         for item in seed["child_directions"]:
             self._validate_reference(item, child_ids, direction_ids)
+        for item in seed["parent_children"]:
+            if item.get("parent_id") not in parent_ids:
+                raise StoreError("Demo seed parent child link references an unknown parent.")
+            if item.get("child_id") not in child_ids:
+                raise StoreError("Demo seed parent child link references an unknown child.")
         for item in seed["visits"]:
             self._validate_reference(item, child_ids, direction_ids)
             if item.get("status") not in VISIT_STATUSES:
@@ -769,6 +1010,37 @@ class DemoStore:
             raise StoreError("Direction is archived.")
         return dict(row)
 
+    def _get_parent(self, connection: sqlite3.Connection, parent_id: str, active: bool = False) -> dict[str, Any]:
+        row = connection.execute(
+            """
+            SELECT id, display_name, login, access_code, archived_at
+            FROM parents
+            WHERE id = ?
+            """,
+            (parent_id,),
+        ).fetchone()
+        if row is None:
+            raise StoreError("Unknown parent.")
+        if active and row["archived_at"] is not None:
+            raise StoreError("Parent is archived.")
+        return dict(row)
+
+    def _get_parent_child(
+            self, connection: sqlite3.Connection, parent_id: str, child_id: str
+    ) -> dict[str, Any]:
+        row = connection.execute(
+            """
+            SELECT parent_id, child_id, archived_at
+            FROM parent_children
+            WHERE parent_id = ?
+              AND child_id = ?
+            """,
+            (parent_id, child_id),
+        ).fetchone()
+        if row is None:
+            raise StoreError("Parent child assignment was not found.")
+        return dict(row)
+
     def _get_child_direction(
             self, connection: sqlite3.Connection, child_id: str, direction_id: str
     ) -> dict[str, Any]:
@@ -776,7 +1048,8 @@ class DemoStore:
             """
             SELECT child_id, direction_id, archived_at
             FROM child_directions
-            WHERE child_id = ? AND direction_id = ?
+            WHERE child_id = ?
+              AND direction_id = ?
             """,
             (child_id, direction_id),
         ).fetchone()
@@ -790,8 +1063,16 @@ class DemoStore:
         params: tuple[Any, ...] = (goal_id,) if child_id is None else (goal_id, child_id)
         row = connection.execute(
             """
-            SELECT id, child_id, direction_id, title, description, status,
-                   metric_label, metric_target, sort_order, archived_at
+            SELECT id,
+                   child_id,
+                   direction_id,
+                   title,
+                   description,
+                   status,
+                   metric_label,
+                   metric_target,
+                   sort_order,
+                   archived_at
             FROM goals
             WHERE id = ?""" + ("" if child_id is None else " AND child_id = ?"),
             params,
@@ -806,9 +1087,17 @@ class DemoStore:
         params: tuple[Any, ...] = (visit_id,) if child_id is None else (visit_id, child_id)
         row = connection.execute(
             """
-            SELECT id, child_id, direction_id, scheduled_start, scheduled_end,
-                   actual_start, actual_end, status, reason_code,
-                   rescheduled_to_visit_id, archived_at
+            SELECT id,
+                   child_id,
+                   direction_id,
+                   scheduled_start,
+                   scheduled_end,
+                   actual_start,
+                   actual_end,
+                   status,
+                   reason_code,
+                   rescheduled_to_visit_id,
+                   archived_at
             FROM visits
             WHERE id = ?""" + ("" if child_id is None else " AND child_id = ?"),
             params,
@@ -826,7 +1115,9 @@ class DemoStore:
             """
             SELECT 1
             FROM child_directions
-            WHERE child_id = ? AND direction_id = ? AND archived_at IS NULL
+            WHERE child_id = ?
+              AND direction_id = ?
+              AND archived_at IS NULL
             """,
             (child_id, direction_id),
         ).fetchone()
@@ -839,12 +1130,17 @@ class DemoStore:
         self._get_visit(connection, visit_id)
 
     def _set_archived(self, table: str, item_id: str, archived_at: str | None) -> dict[str, Any]:
-        if table not in {"children", "directions"}:
+        if table not in {"children", "directions", "parents"}:
             raise StoreError("Unsupported archive table.")
         with self._lock:
             self._ensure_database()
             with self._connection() as connection, connection:
-                column_getter = self._get_child if table == "children" else self._get_direction
+                if table == "children":
+                    column_getter = self._get_child
+                elif table == "directions":
+                    column_getter = self._get_direction
+                else:
+                    column_getter = self._get_parent
                 column_getter(connection, item_id)
                 connection.execute(
                     f"UPDATE {table} SET archived_at = ? WHERE id = ?",

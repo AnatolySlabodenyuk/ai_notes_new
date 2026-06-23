@@ -77,6 +77,20 @@
       "direction_id": "direction-psychology"
     }
   ],
+  "parents": [
+    {
+      "id": "parent-a",
+      "display_name": "Родитель А",
+      "login": "parent-a",
+      "access_code": "demo-parent-a"
+    }
+  ],
+  "parent_children": [
+    {
+      "parent_id": "parent-a",
+      "child_id": "child-a"
+    }
+  ],
   "visits": [
     {
       "id": "visit-may-aba-1",

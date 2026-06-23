@@ -22,7 +22,7 @@ class JournalStoreTests(unittest.TestCase):
             self.assertGreaterEqual(len(data["goal_updates"]), 1)
             with closing(sqlite3.connect(store.path)) as connection:
                 version = connection.execute("SELECT version FROM schema_meta").fetchone()[0]
-            self.assertEqual(version, 4)
+            self.assertEqual(version, 5)
 
     def test_existing_old_database_is_replaced_when_schema_version_is_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -108,6 +108,35 @@ class JournalStoreTests(unittest.TestCase):
             self.assertEqual(selected["child"]["display_name"], "Ребёнок Бета")
             self.assertEqual(selected["child"]["age_label"], "6 лет")
             self.assertTrue(any(item["id"] == child["id"] for item in children))
+
+    def test_parent_accounts_only_load_assigned_children(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DemoStore(Path(tmp) / "app.sqlite3")
+            child = store.create_child(
+                {"display_name": "Ребёнок Б", "age_label": "6 лет", "focus": "адаптация"}
+            )
+            parent = store.create_parent(
+                {"display_name": "Родитель Б", "login": "parent-b", "access_code": "demo-b"}
+            )
+            store.assign_parent_child(parent["id"], child["id"])
+
+            children = store.list_parent_children(parent["id"])
+            selected = store.load_parent_journal_data(parent["id"], child["id"])
+
+            self.assertEqual(children, [child])
+            self.assertEqual(selected["child"]["id"], child["id"])
+            with self.assertRaisesRegex(StoreError, "not linked"):
+                store.load_parent_journal_data(parent["id"], "child-a")
+
+    def test_seed_contains_demo_parent_for_parent_portal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = DemoStore(Path(tmp) / "app.sqlite3")
+
+            parents = store.list_parents()
+            children = store.list_parent_children("parent-a")
+
+            self.assertTrue(any(parent["id"] == "parent-a" for parent in parents))
+            self.assertEqual(children[0]["id"], "child-a")
 
     def test_archived_child_is_not_available_for_parent_journal_until_restored(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,10 +1,10 @@
 :root {
-    --bg: #f5f1ea;
-    --bg-soft: #fbfaf6;
+    --bg: #eef2f3;
+    --bg-soft: #f7f8f5;
     --surface: #ffffff;
     --ink: #202124;
     --muted: #65716d;
-    --border: #ded7ca;
+    --border: #d6dde0;
     --primary: #2f7d7a;
     --primary-soft: #e5f1ee;
     --school: #5676a5;
@@ -12,8 +12,8 @@
     --amber: #e8c36a;
     --error: #b94747;
     --warning-bg: #fff4d9;
-    --shadow: 0 18px 42px rgba(48, 43, 35, 0.08);
-    --shadow-soft: 0 8px 22px rgba(48, 43, 35, 0.06);
+    --shadow: 0 18px 42px rgba(34, 48, 54, 0.08);
+    --shadow-soft: 0 8px 22px rgba(34, 48, 54, 0.06);
 }
 
 * {
@@ -26,8 +26,7 @@
 
 body {
     margin: 0;
-    background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 240px),
-    var(--bg);
+    background: var(--bg);
     color: var(--ink);
     font-family: Inter, "Segoe UI", Arial, sans-serif;
 }
@@ -53,6 +52,28 @@ button, select {
 .topbar {
     margin-bottom: 16px;
     align-items: end;
+}
+
+.surface-switcher {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.surface-switcher a {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, .82);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.surface-switcher a.active {
+    border-color: var(--primary);
+    color: #fff;
+    background: var(--primary);
 }
 
 h1, h2, h3, p {
@@ -433,11 +454,111 @@ select {
     gap: 18px;
 }
 
+.admin-shell {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.admin-sidebar {
+    position: sticky;
+    top: 18px;
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
+}
+
+.admin-sidebar a {
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--muted);
+    text-decoration: none;
+}
+
+.admin-sidebar a.active {
+    color: #fff;
+    background: var(--primary);
+}
+
+.admin-section[hidden] {
+    display: none !important;
+}
+
+.ops-grid,
+.settings-grid,
+.child-workspace-grid {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.ops-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.summary-tile,
+.settings-card,
+.child-workspace {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+}
+
+.summary-tile strong {
+    display: block;
+    margin-top: 4px;
+    color: var(--primary);
+    font-size: 24px;
+}
+
+.child-workspace {
+    margin-top: 16px;
+}
+
+.child-workspace-grid {
+    grid-template-columns: 1fr;
+}
+
+.mini-tabs,
+.quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.mini-tabs span,
+.quick-actions a {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--muted);
+    background: var(--bg-soft);
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.quick-actions strong {
+    display: flex;
+    align-items: center;
+    margin-right: 4px;
+}
+
 .admin-form {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
     margin-top: 14px;
+}
+
+.compact-form {
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .admin-form-wide {
@@ -488,7 +609,7 @@ select {
 
 .admin-row {
     display: grid;
-    grid-template-columns: 1.1fr 90px repeat(4, minmax(0, 1fr)) auto auto;
+    grid-template-columns: minmax(130px, 1.1fr) 90px repeat(4, minmax(0, 1fr)) auto auto auto;
     align-items: center;
     gap: 8px;
     border: 1px solid var(--border);
@@ -552,11 +673,19 @@ select {
     }
 
     .topbar-controls,
+    .surface-switcher,
+    .admin-shell,
+    .ops-grid,
     .admin-form,
     .admin-form-wide,
+    .compact-form,
     .admin-row {
         display: grid;
         grid-template-columns: 1fr;
         justify-content: stretch;
+    }
+
+    .admin-sidebar {
+        position: static;
     }
 }

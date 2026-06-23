@@ -13,9 +13,19 @@ class FrontendStaticSafetyTests(unittest.TestCase):
 
     def test_frontend_uses_read_only_journal_endpoint(self):
         self.assertIn("/api/journal?month=", self.app)
+        self.assertIn("/api/parent/journal?parent_id=", self.app)
+        self.assertIn("/api/parent/children?parent_id=", self.app)
         self.assertIn("/api/admin/children", self.app)
 
-    def test_hash_routes_cover_overview_calendar_and_direction(self):
+    def test_hash_routes_cover_parent_and_admin_surfaces(self):
+        self.assertIn("#/parent/overview", self.app)
+        self.assertIn("#/parent/calendar", self.app)
+        self.assertIn("#/parent/direction/", self.app)
+        self.assertIn("#/admin/day", self.app)
+        self.assertIn("#/admin/children", self.app)
+        self.assertIn("#/admin/schedule", self.app)
+        self.assertIn("#/admin/directions", self.app)
+        self.assertIn("#/admin/parents", self.app)
         self.assertIn("#/overview", self.app)
         self.assertIn("#/calendar", self.app)
         self.assertIn("#/direction/", self.app)
@@ -32,12 +42,14 @@ class FrontendStaticSafetyTests(unittest.TestCase):
     def test_dashboard_copy_and_demo_boundary_are_present(self):
         self.assertIn("Электронный журнал", self.html)
         self.assertIn("обезличенные данные", self.html)
+        self.assertIn("Родительский кабинет", self.html)
+        self.assertIn("Операционный центр", self.html)
         self.assertIn("Обзор", self.html)
         self.assertIn("Календарь", self.html)
 
     def test_static_assets_use_matching_cache_busting_version(self):
-        self.assertIn('href="/static/styles.css?v=10"', self.html)
-        self.assertIn('src="/static/app.js?v=10"', self.html)
+        self.assertIn('href="/static/styles.css?v=11"', self.html)
+        self.assertIn('src="/static/app.js?v=11"', self.html)
 
     def test_calendar_navigation_is_separate_from_child_card(self):
         profile_start = self.html.index('<section class="profile-card panel" id="profileCard">')
@@ -70,7 +82,7 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("?month=${state.month}&from=overview", self.app)
         self.assertIn("&date=${day.date}&from=calendar", self.app)
         self.assertIn('const directionSource = route.params.get("from") === "calendar" ? "calendar" : "overview";', self.app)
-        self.assertIn('navigate(`#/${directionSource}?month=${state.month}`)', self.app)
+        self.assertIn('navigate(`#/parent/${directionSource}?month=${state.month}`)', self.app)
         self.assertIn('directionSource === "calendar" ? "← Вернуться к календарю" : "← Вернуться к обзору"', self.app)
 
     def test_direction_navigation_keeps_source_tab_active(self):
@@ -106,13 +118,32 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("/visits", self.app)
 
     def test_admin_layout_has_operational_sections(self):
-        self.assertIn("Админка", self.html)
+        self.assertIn("Операционный центр", self.html)
+        self.assertIn("День", self.html)
         self.assertIn("Дети", self.html)
+        self.assertIn("Родители", self.html)
+        self.assertIn("Настройки", self.html)
         self.assertIn("Направления", self.html)
         self.assertIn("Цели", self.html)
         self.assertIn("Расписание", self.html)
+        self.assertIn("childWorkspaceView", self.html)
+        self.assertIn("Быстрые действия", self.html)
         self.assertIn(".admin-layout", self.styles)
+        self.assertIn(".admin-shell", self.styles)
+        self.assertIn(".admin-sidebar", self.styles)
         self.assertIn(".admin-table", self.styles)
+
+    def test_parent_cabinet_does_not_render_admin_controls(self):
+        parent_start = self.html.index('<section id="parentShell"')
+        admin_start = self.html.index('<section id="adminShell"')
+        parent_markup = self.html[parent_start:admin_start]
+
+        self.assertNotIn("Админка", parent_markup)
+        self.assertNotIn("childForm", parent_markup)
+        self.assertNotIn("directionForm", parent_markup)
+        self.assertNotIn("goalForm", parent_markup)
+        self.assertNotIn("visitForm", parent_markup)
+        self.assertIn("parentChildSelect", parent_markup)
 
 
 if __name__ == "__main__":
