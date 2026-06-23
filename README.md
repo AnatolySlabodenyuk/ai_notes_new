@@ -130,7 +130,7 @@ Demo state is stored in a local SQLite database:
 data/app.sqlite3
 ```
 
-If the local schema version changes, the app recreates the ignored demo database from `backend/demo_seed.json`. The current SQLite schema version is `4`. Do not place real child personal data in the seed or local demo database.
+If the local schema version changes, the app recreates the ignored demo database from `backend/demo_seed.json`. The current SQLite schema version is `5`. Do not place real child personal data in the seed or local demo database.
 
 ## Documentation
 

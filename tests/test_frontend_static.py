@@ -7,6 +7,7 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.html = Path("frontend/index.html").read_text(encoding="utf-8")
         self.app = Path("frontend/app.js").read_text(encoding="utf-8")
         self.styles = Path("frontend/styles.css").read_text(encoding="utf-8")
+        self.readme = Path("README.md").read_text(encoding="utf-8")
 
     def test_app_does_not_render_store_data_with_inner_html(self):
         self.assertNotIn(".innerHTML", self.app)
@@ -48,8 +49,8 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("Календарь", self.html)
 
     def test_static_assets_use_matching_cache_busting_version(self):
-        self.assertIn('href="/static/styles.css?v=11"', self.html)
-        self.assertIn('src="/static/app.js?v=11"', self.html)
+        self.assertIn('href="/static/styles.css?v=12"', self.html)
+        self.assertIn('src="/static/app.js?v=12"', self.html)
 
     def test_calendar_navigation_is_separate_from_child_card(self):
         profile_start = self.html.index('<section class="profile-card panel" id="profileCard">')
@@ -145,6 +146,23 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn("shownVisits.length ? shownVisits.map", self.app)
         self.assertIn('empty("Занятий пока нет.")', self.app)
         self.assertNotIn("activeVisits.slice(0, 6).map", self.app)
+
+    def test_mobile_parent_navigation_uses_two_columns(self):
+        self.assertIn(".app-nav {", self.styles)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", self.styles)
+        self.assertNotIn("grid-template-columns: 1fr 1fr 1fr;", self.styles)
+
+    def test_parent_access_codes_are_masked_in_admin_rows(self):
+        self.assertIn("function passwordInput", self.app)
+        self.assertIn('input(name, value, "password")', self.app)
+        self.assertIn('const code = passwordInput("access_code", parent.access_code);', self.app)
+        self.assertIn('button("Показать код"', self.app)
+        self.assertIn('button("Скопировать код"', self.app)
+        self.assertNotIn('const code = input("access_code", parent.access_code);', self.app)
+
+    def test_readme_schema_version_matches_store(self):
+        self.assertIn("The current SQLite schema version is `5`.", self.readme)
+        self.assertNotIn("The current SQLite schema version is `4`.", self.readme)
 
     def test_parent_cabinet_does_not_render_admin_controls(self):
         parent_start = self.html.index('<section id="parentShell"')

@@ -60,6 +60,12 @@ function input(name, value, type = "text") {
     return element;
 }
 
+function passwordInput(name, value) {
+    const element = input(name, value, "password");
+    element.autocomplete = "off";
+    return element;
+}
+
 function button(text, className, onClick) {
     const element = node("button", className, text);
     element.type = "button";
@@ -556,8 +562,17 @@ function renderParentsAdmin() {
         const row = adminRow(parent.display_name, parent.archived_at);
         const name = input("display_name", parent.display_name);
         const login = input("login", parent.login);
-        const code = input("access_code", parent.access_code);
+        const code = passwordInput("access_code", parent.access_code);
         row.append(name, login, code);
+        row.append(button("Показать код", "", (event) => {
+            const isHidden = code.type === "password";
+            code.type = isHidden ? "text" : "password";
+            event.currentTarget.textContent = isHidden ? "Скрыть код" : "Показать код";
+        }));
+        row.append(button("Скопировать код", "", () => runAdminAction(async () => {
+            if (!navigator.clipboard?.writeText) throw new Error("Браузер не дал доступ к буферу обмена.");
+            await navigator.clipboard.writeText(code.value);
+        })));
         row.append(button("Сохранить", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/parents/${parent.id}`, "PUT", {
                 display_name: name.value,
