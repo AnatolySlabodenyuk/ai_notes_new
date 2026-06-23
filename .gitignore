@@ -8,7 +8,6 @@ __pycache__/
 .serena/
 
 # Логи и отчеты
-docs/
 *.log
 .playwright-mcp/
 
@@ -29,6 +28,3 @@ desktop.ini
 
 # Папка с данными (ваше правило)
 data/
-
-# AI
-AGENTS.md
