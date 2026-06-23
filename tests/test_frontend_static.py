@@ -133,6 +133,19 @@ class FrontendStaticSafetyTests(unittest.TestCase):
         self.assertIn(".admin-sidebar", self.styles)
         self.assertIn(".admin-table", self.styles)
 
+    def test_admin_actions_share_visible_error_handling(self):
+        self.assertIn("async function runAdminAction", self.app)
+        self.assertIn("function showError", self.app)
+        self.assertIn("showError(error.message)", self.app)
+        self.assertGreaterEqual(self.app.count("runAdminAction(async () => {"), 10)
+
+    def test_admin_day_uses_explicit_empty_state_and_honest_copy(self):
+        self.assertIn("Ближайшие и последние занятия", self.html)
+        self.assertIn("const shownVisits = activeVisits.slice(0, 6);", self.app)
+        self.assertIn("shownVisits.length ? shownVisits.map", self.app)
+        self.assertIn('empty("Занятий пока нет.")', self.app)
+        self.assertNotIn("activeVisits.slice(0, 6).map", self.app)
+
     def test_parent_cabinet_does_not_render_admin_controls(self):
         parent_start = self.html.index('<section id="parentShell"')
         admin_start = self.html.index('<section id="adminShell"')

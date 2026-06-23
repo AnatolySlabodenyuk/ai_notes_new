@@ -99,6 +99,25 @@ function empty(message) {
     return node("div", "empty-state", message);
 }
 
+function showError(message) {
+    $("errorBox").textContent = message;
+    $("errorBox").hidden = false;
+}
+
+function clearError() {
+    $("errorBox").textContent = "";
+    $("errorBox").hidden = true;
+}
+
+async function runAdminAction(action) {
+    clearError();
+    try {
+        await action();
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
 async function api(path, options = {}) {
     const response = await fetch(path, options);
     const payload = await response.json();
@@ -158,7 +177,7 @@ async function loadParentChildren() {
 }
 
 async function loadJournal() {
-    $("errorBox").hidden = true;
+    clearError();
     try {
         const childQuery = state.childId ? `&child_id=${encodeURIComponent(state.childId)}` : "";
         state.snapshot = await api(`/api/parent/journal?parent_id=${encodeURIComponent(state.parentId)}&month=${encodeURIComponent(state.month)}${childQuery}`);
@@ -166,8 +185,7 @@ async function loadJournal() {
         renderChildSelectors();
         render();
     } catch (error) {
-        $("errorBox").textContent = error.message;
-        $("errorBox").hidden = false;
+        showError(error.message);
     }
 }
 
@@ -383,24 +401,24 @@ function renderChildrenAdmin() {
         const age = input("age_label", child.age_label);
         const focus = input("focus", child.focus);
         row.append(name, age, focus);
-        row.append(button("Открыть", "secondary-button", async () => {
+        row.append(button("Открыть", "secondary-button", () => runAdminAction(async () => {
             state.childId = child.id;
             renderChildSelectors();
             await loadAdminChildData();
             navigate(ROUTES.adminChildren);
-        }));
-        row.append(button("Сохранить", "", async () => {
+        })));
+        row.append(button("Сохранить", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/children/${child.id}`, "PUT", {
                 display_name: name.value,
                 age_label: age.value,
                 focus: focus.value
             });
             await reloadAll();
-        }));
-        row.append(button(child.archived_at ? "Вернуть" : "Архивировать", "", async () => {
+        })));
+        row.append(button(child.archived_at ? "Вернуть" : "Архивировать", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/children/${child.id}/${child.archived_at ? "restore" : "archive"}`, "POST", {});
             await reloadAll();
-        }));
+        })));
         return row;
     });
     $("childrenAdminList").replaceChildren(...(rows.length ? rows : [empty("Детей пока нет.")]));
@@ -416,7 +434,7 @@ function renderDirectionsAdmin() {
         const color = input("color", direction.color);
         const sort = input("sort_order", direction.sort_order, "number");
         row.append(title, slug, color, sort);
-        row.append(button("Сохранить", "", async () => {
+        row.append(button("Сохранить", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/directions/${direction.id}`, "PUT", {
                 title: title.value,
                 slug: slug.value,
@@ -424,11 +442,11 @@ function renderDirectionsAdmin() {
                 sort_order: sort.value
             });
             await reloadAll();
-        }));
-        row.append(button(direction.archived_at ? "Вернуть" : "Архивировать", "", async () => {
+        })));
+        row.append(button(direction.archived_at ? "Вернуть" : "Архивировать", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/directions/${direction.id}/${direction.archived_at ? "restore" : "archive"}`, "POST", {});
             await reloadAll();
-        }));
+        })));
         return row;
     });
     $("directionsAdminList").replaceChildren(...(rows.length ? rows : [empty("Направлений пока нет.")]));
@@ -444,10 +462,10 @@ function renderChildDirectionsAdmin() {
     const rows = assigned.map((assignment) => {
         const direction = directionById(assignment.direction_id);
         const row = adminRow(direction?.title || assignment.direction_id, assignment.archived_at);
-        row.append(button("Убрать", "", async () => {
+        row.append(button("Убрать", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/children/${state.childId}/directions/${assignment.direction_id}`, "DELETE");
             await reloadAll();
-        }));
+        })));
         return row;
     });
     $("childDirectionsAdminList").replaceChildren(...(rows.length ? rows : [empty("Направления ребёнку пока не подключены.")]));
@@ -462,7 +480,7 @@ function renderGoalsAdmin() {
         ["active", "progress", "achieved", "paused"].forEach((value) => status.append(option(value, STATUS_LABELS[value])));
         status.value = goal.status;
         row.append(node("span", "muted", directionById(goal.direction_id)?.title || goal.direction_id), title, description, status);
-        row.append(button("Сохранить", "", async () => {
+        row.append(button("Сохранить", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/children/${state.childId}/goals/${goal.id}`, "PUT", {
                 direction_id: goal.direction_id,
                 title: title.value,
@@ -473,11 +491,11 @@ function renderGoalsAdmin() {
                 sort_order: goal.sort_order,
             });
             await reloadAll();
-        }));
-        row.append(button("Архивировать", "", async () => {
+        })));
+        row.append(button("Архивировать", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/children/${state.childId}/goals/${goal.id}`, "DELETE");
             await reloadAll();
-        }));
+        })));
         return row;
     });
     $("goalsAdminList").replaceChildren(...(rows.length ? rows : [empty("Цели пока не добавлены.")]));
@@ -492,7 +510,7 @@ function renderVisitsAdmin() {
         ["scheduled", "completed", "partial", "cancelled", "absent", "rescheduled"].forEach((value) => status.append(option(value, STATUS_LABELS[value])));
         status.value = visit.status;
         row.append(start, end, status);
-        row.append(button("Сохранить", "", async () => {
+        row.append(button("Сохранить", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/children/${state.childId}/visits/${visit.id}`, "PUT", {
                 direction_id: visit.direction_id,
                 scheduled_start: toSchoolIso(start.value),
@@ -503,11 +521,11 @@ function renderVisitsAdmin() {
                 reason_code: visit.reason_code,
             });
             await reloadAll();
-        }));
-        row.append(button("Архивировать", "", async () => {
+        })));
+        row.append(button("Архивировать", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/children/${state.childId}/visits/${visit.id}`, "DELETE");
             await reloadAll();
-        }));
+        })));
         return row;
     });
     $("visitsAdminList").replaceChildren(...(rows.length ? rows : [empty("Занятия пока не добавлены.")]));
@@ -516,12 +534,13 @@ function renderVisitsAdmin() {
 function renderAdminDay() {
     const activeVisits = state.admin.visits.filter((visit) => !visit.archived_at);
     const problemVisits = activeVisits.filter((visit) => ["partial", "cancelled", "absent", "rescheduled"].includes(visit.status));
+    const shownVisits = activeVisits.slice(0, 6);
     $("adminDaySummary").replaceChildren(
         summaryTile("Занятий", String(activeVisits.length)),
         summaryTile("Исключений", String(problemVisits.length)),
         summaryTile("Целей", String(state.admin.goals.filter((goal) => !goal.archived_at).length))
     );
-    $("adminDayList").replaceChildren(...(activeVisits.slice(0, 6).map((visit) => visitCard(visit, directionById(visit.direction_id), "admin-visit")) || [empty("На сегодня задач нет.")]));
+    $("adminDayList").replaceChildren(...(shownVisits.length ? shownVisits.map((visit) => visitCard(visit, directionById(visit.direction_id), "admin-visit")) : [empty("Занятий пока нет.")]));
 }
 
 function summaryTile(label, value) {
@@ -539,18 +558,18 @@ function renderParentsAdmin() {
         const login = input("login", parent.login);
         const code = input("access_code", parent.access_code);
         row.append(name, login, code);
-        row.append(button("Сохранить", "", async () => {
+        row.append(button("Сохранить", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/parents/${parent.id}`, "PUT", {
                 display_name: name.value,
                 login: login.value,
                 access_code: code.value
             });
             await reloadAll();
-        }));
-        row.append(button(parent.archived_at ? "Вернуть" : "Архивировать", "", async () => {
+        })));
+        row.append(button(parent.archived_at ? "Вернуть" : "Архивировать", "", () => runAdminAction(async () => {
             await mutate(`/api/admin/parents/${parent.id}/${parent.archived_at ? "restore" : "archive"}`, "POST", {});
             await reloadAll();
-        }));
+        })));
         return row;
     });
     $("parentsAdminList").replaceChildren(...(rows.length ? rows : [empty("Родителей пока нет.")]));
@@ -666,55 +685,69 @@ $("adminChildSelect").addEventListener("change", async (event) => {
 
 $("childForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const child = await mutate("/api/admin/children", "POST", formData(event.currentTarget));
-    state.childId = child.id;
-    event.currentTarget.reset();
-    await reloadAll();
+    await runAdminAction(async () => {
+        const child = await mutate("/api/admin/children", "POST", formData(event.currentTarget));
+        state.childId = child.id;
+        event.currentTarget.reset();
+        await reloadAll();
+    });
 });
 
 $("directionForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    await mutate("/api/admin/directions", "POST", formData(event.currentTarget));
-    event.currentTarget.reset();
-    event.currentTarget.elements.sort_order.value = "10";
-    await reloadAll();
+    await runAdminAction(async () => {
+        await mutate("/api/admin/directions", "POST", formData(event.currentTarget));
+        event.currentTarget.reset();
+        event.currentTarget.elements.sort_order.value = "10";
+        await reloadAll();
+    });
 });
 
 $("assignDirectionForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    await mutate(`/api/admin/children/${state.childId}/directions`, "POST", formData(event.currentTarget));
-    await reloadAll();
+    await runAdminAction(async () => {
+        await mutate(`/api/admin/children/${state.childId}/directions`, "POST", formData(event.currentTarget));
+        await reloadAll();
+    });
 });
 
 $("goalForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    await mutate(`/api/admin/children/${state.childId}/goals`, "POST", formData(event.currentTarget));
-    event.currentTarget.reset();
-    await reloadAll();
+    await runAdminAction(async () => {
+        await mutate(`/api/admin/children/${state.childId}/goals`, "POST", formData(event.currentTarget));
+        event.currentTarget.reset();
+        await reloadAll();
+    });
 });
 
 $("visitForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = formData(event.currentTarget);
-    data.scheduled_start = toSchoolIso(data.scheduled_start);
-    data.scheduled_end = toSchoolIso(data.scheduled_end);
-    await mutate(`/api/admin/children/${state.childId}/visits`, "POST", data);
-    event.currentTarget.reset();
-    await reloadAll();
+    await runAdminAction(async () => {
+        const data = formData(event.currentTarget);
+        data.scheduled_start = toSchoolIso(data.scheduled_start);
+        data.scheduled_end = toSchoolIso(data.scheduled_end);
+        await mutate(`/api/admin/children/${state.childId}/visits`, "POST", data);
+        event.currentTarget.reset();
+        await reloadAll();
+    });
 });
 
 $("parentForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    await mutate("/api/admin/parents", "POST", formData(event.currentTarget));
-    event.currentTarget.reset();
-    await reloadAll();
+    await runAdminAction(async () => {
+        await mutate("/api/admin/parents", "POST", formData(event.currentTarget));
+        event.currentTarget.reset();
+        await reloadAll();
+    });
 });
 
 $("assignParentChildForm").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = formData(event.currentTarget);
-    await mutate(`/api/admin/parents/${data.parent_id}/children`, "POST", {child_id: data.child_id});
-    await reloadAll();
+    await runAdminAction(async () => {
+        const data = formData(event.currentTarget);
+        await mutate(`/api/admin/parents/${data.parent_id}/children`, "POST", {child_id: data.child_id});
+        await reloadAll();
+    });
 });
 
 window.addEventListener("hashchange", () => {
@@ -741,6 +774,5 @@ loadParentChildren()
     .then(loadAdmin)
     .then(loadJournal)
     .catch((error) => {
-        $("errorBox").textContent = error.message;
-        $("errorBox").hidden = false;
+        showError(error.message);
     });
